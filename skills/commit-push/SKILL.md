@@ -125,19 +125,10 @@ Additional context if needed."
 
 ## 6. Push
 
-**AGENTS.md §1.3 is non-negotiable: Never push without user approval.**
-
-Before pushing, **explicitly ask the user**: "Push to remote? (Y/n)"
+Push the branch to the remote — this is the point of the skill.
 
 ```bash
-read -r -p "Push to remote? (Y/n) " RESPONSE
-if [ "${RESPONSE:-Y}" = "Y" ] || [ "${RESPONSE:-Y}" = "y" ] || [ -z "$RESPONSE" ]; then
-  git push origin HEAD
-else
-  echo "Push cancelled by user. Branch '$(git branch --show-current)' is ready but not pushed."
-  echo "To push manually: git push origin HEAD"
-  exit 0
-fi
+git push origin HEAD
 ```
 
 **Handle push failures:**
