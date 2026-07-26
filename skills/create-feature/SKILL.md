@@ -1,15 +1,15 @@
 ---
 name: create-feature
-description: Orchestrates a full feature lifecycle: receive goals, synthesize detailed specs, propose via OpenSpec, commit & push, apply tasks, audit results, update PR, and post audit results as a comment.
+description: Orchestrates a complete feature lifecycle: receive goals, synthesize specs, propose via OpenSpec, commit specs to PR, apply tasks, commit implementation, archive, update PR, and post audit results.
 license: BSD 3-Clause
-compatibility: Requires Node.js 24+, npm, git with remote access, gh CLI, openspec CLI, and a project root with openspec/ directory. When invoked as a sub-agent, requires a 30–60 minute timeout — the full pipeline (spec → implement → test → archive → PR) can take that long.
+compatibility: Requires Node.js 24+, npm, git with remote access, gh CLI, openspec CLI, and a project root with openspec/ directory. When invoked as a sub-agent, requires a 30–60 minute timeout — the full pipeline (spec → PR → implement → archive → update PR) can take that long.
 metadata:
   agent: coding
 ---
 
 # Create Feature
 
-Orchestrate a complete feature lifecycle from raw goals to shipped code. This is the full pipeline — synthesis, specification, implementation, verification, and delivery.
+Orchestrate a complete feature lifecycle from raw goals to shipped code. This is the full pipeline — synthesis, specification, implementation, verification, delivery, and archive.
 
 ## Prerequisites
 
@@ -235,7 +235,9 @@ Write audit findings to `memory/${SESSION_ID}-audit-results.md`.
 
 ---
 
-## Step 6: Commit & Push (via commit-push)
+## Step 6: Commit & Push OpenSpec Files (via commit-push)
+
+**Purpose:** Lock the spec documents into a pull request before implementation begins.
 
 **Do not perform git operations inline.** Invoke the `commit-push` skill to handle staging, committing, pushing, and PR creation.
 
@@ -244,7 +246,7 @@ commit-push
 ```
 
 The `commit-push` skill will:
-- Stage all changes
+- Stage all OpenSpec files and spec deltas
 - Commit using conventional commit format from the scanned project rules §5.1
 - Push to the remote
 - Create a PR using the template from the scanned project rules §5.4
@@ -265,7 +267,7 @@ If `/commit-push` fails, report the error and stop. Do not attempt to recover wi
 
 ---
 
-## Step 7: Apply Tasks
+## Step 7: Apply Tasks (via /opsx-apply)
 
 Execute tasks using this procedure (simplified for the automated pipeline context):
 
@@ -291,6 +293,26 @@ AVAILABLE_SCRIPTS=$(node -e "console.log(Object.keys(require('./package.json').s
 - If no script exists in package.json, skip the step and note "No script defined — skipped."
 
 If any verification fails, fix the issues and re-verify.
+
+---
+
+## Step 7.5: Commit & Push Implementation Code (via commit-push)
+
+**Purpose:** Push the code produced by `/opsx-apply` to the open PR.
+
+Invoke `commit-push` to stage, commit, push, and update the existing PR:
+
+```
+commit-push
+```
+
+This will:
+- Stage all implementation files (not openspec files — they are already committed)
+- Commit using conventional commit format from the scanned project rules §5.1
+- Push to the remote
+- Update the existing PR (created in Step 6) if `commit-push` detects a pre-existing PR
+
+If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
 ---
 
@@ -332,67 +354,67 @@ Write audit findings to `memory/${SESSION_ID}-audit-results.md` (overwrite previ
 
 ---
 
-## Step 10: Archive the OpenSpec Change
+## Step 10: Archive and Push (opsx-archive → commit-push)
 
-Archive the completed OpenSpec change with automatic sync:
+**Purpose:** Archive the OpenSpec change and push the archive (and any remaining implementation fixes from Step 9) to the open PR.
 
-1. **Run the archive:**
-   ```bash
-   openspec archive "$CHANGE_NAME" --yes
-   ```
+1. **Archive the OpenSpec change with automatic sync:**
 
-2. **When presented with a sync prompt**, automatically choose **sync** (the recommended option). Do not require user input — just select sync:
-   - If the prompt shows "Sync now (recommended)" / "Archive without syncing" → choose "Sync now (recommended)"
-   - If the prompt shows "Archive now" / "Sync anyway" / "Cancel" → choose "Archive now"
-   - If no delta specs exist → proceed without sync prompt
+    1. Run the archive:
+        ```bash
+        openspec archive "$CHANGE_NAME" --yes
+        ```
 
-3. **Verify** the archive was created:
-   ```bash
-   ls openspec/changes/archive/
-   ```
+    2. **When presented with a sync prompt**, automatically choose **sync** (the recommended option). Do not require user input — just select sync:
+        - If the prompt shows "Sync now (recommended)" / "Archive without syncing" → choose "Sync now (recommended)"
+        - If the prompt shows "Archive now" / "Sync anyway" / "Cancel" → choose "Archive now"
+        - If no delta specs exist → proceed without sync prompt
 
-The change directory should now be under `openspec/changes/archive/YYYY-MM-DD-<name>/`.
+    3. **Verify** the archive was created:
+        ```bash
+        ls openspec/changes/archive/
+        ```
+
+    The change directory should now be under `openspec/changes/archive/YYYY-MM-DD-<name>/`.
+
+2. **Push the archive (and all remaining changes) to the open PR** by invoking `commit-push`:
+
+    ```
+    commit-push
+    ```
+
+    This will:
+    - Stage the archived change directory and any delta specs synced from the archive
+    - Stage any remaining implementation fixes from Step 9
+    - Commit using conventional commit format from the scanned project rules §5.1
+    - Push to the remote
+    - Update the existing PR (created in Step 6) if `commit-push` detects a pre-existing PR
+
+    If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
 ---
 
-## Step 11: Commit & Push Implementation Fixes
+## Step 11: Update PR Title & Description (via update-pr)
 
-If any fixes were made in Step 8, commit and push them by invoking `commit-push`:
+**Purpose:** Set the final, accurate PR title and description reflecting what was actually implemented.
+
+Invoke the `update-pr` skill to update the PR. This skill scans project rules for conventions and the PR template, synthesizes both from the delta between the branch and target, and applies changes via `gh api`:
 
 ```
-commit-push
+update-pr
 ```
 
-If no fixes were needed, skip this step.
+The `update-pr` skill will:
+- Gather the actual changes made (`git diff main...HEAD --stat`, `git diff main...HEAD --name-only`)
+- Synthesize a final PR description that reflects what was actually implemented, references specific files and modules changed, notes any deviations from the original plan, and includes a testing coverage summary
+- Follow the PR template format from the scanned project rules §5.4
+- Update the PR using `gh api`
+
+After `update-pr` completes, verify the PR was updated correctly by checking the PR on GitHub.
 
 ---
 
-## Step 12: Update PR Title & Description
-
-Use `gh api` to update the PR title and body with the final, accurate description of what was implemented.
-
-1. Gather the actual changes made:
-   ```bash
-   git diff main...HEAD --stat
-   git diff main...HEAD --name-only
-   ```
-
-2. Synthesize a final PR description that:
-   - Reflects what was actually implemented (not just what was planned)
-   - References specific files and modules changed
-   - Notes any deviations from the original plan
-   - Includes testing coverage summary
-   - Follows the PR template format from the scanned project rules
-
-3. Read the PR number and update the PR:
-   ```bash
-   PR_NUMBER=$(cat memory/${SESSION_ID}-pr-number.txt)
-   gh pr edit "$PR_NUMBER" --title "feat: $CHANGE_NAME — <final title>" --body "<final body>"
-   ```
-
----
-
-## Step 13: Post Audit Results as PR Comment
+## Step 12: Post Audit Results as PR Comment
 
 Post the final audit results from Step 9 as a comment on the PR:
 
@@ -403,7 +425,7 @@ gh pr comment "$PR_NUMBER" --body "$(cat memory/${SESSION_ID}-audit-results.md)"
 
 ---
 
-## Step 14: Final Report
+## Step 13: Final Report
 
 Print a summary:
 
@@ -420,7 +442,7 @@ Coverage: maintained
 
 ---
 
-## Step 15: Cleanup
+## Step 14: Cleanup
 
 Remove the intermediate memory files — they served their purpose and won't be needed again:
 
