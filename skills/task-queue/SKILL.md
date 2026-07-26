@@ -2,7 +2,7 @@
 name: task-queue
 description: Accept a list of tasks (JSON or natural language), execute shell commands sequentially with fail-fast logic, and report a structured summary.
 license: BSD 3-Clause
-compatibility: Requires git CLI configured with remote access and PR creation tools (e.g., gh).
+compatibility: Requires a shell (bash or sh) with `timeout` available.
 metadata:
   agent: coding
 ---
@@ -40,30 +40,73 @@ Iterate through tasks in order. **Do not pause for user confirmation.**
 ```
 
 For each task:
-1. **Run Command:** Execute the `command` using `terminal`. Set a timeout to prevent hanging:
-   ```bash
-   timeout 300 bash -c "$COMMAND" 2>&1
-   ```
-   This limits each command to 5 minutes. Adjust as needed.
 
-2. **Capture output:** Always capture both stdout and stderr:
-   ```bash
-   OUTPUT=$(timeout 300 bash -c "$COMMAND" 2>&1)
-   EXIT_CODE=$?
-   ```
+1. **Sanitize the command.** Reject commands that contain high-risk patterns (shell metacharacters used for injection) unless they are part of a safe, expected construct. The following patterns are **always rejected**:
 
-3. **Handle working directory changes:** Commands may change the working directory (e.g., `cd /tmp`). Always run commands in a subshell to isolate directory changes:
-   ```bash
-   OUTPUT=$(timeout 300 bash -c "$COMMAND" 2>&1)
-   ```
-   This ensures subsequent commands run in the original directory.
+    - Semicolons used as command separators after a suspicious context: `"; rm -rf"`, `"; rm -rf /"`
+    - `&&` with filesystem-modifying commands in suspicious context: `" && rm -rf /"`
+    - `| sh` or `| bash` (pipe into shell execution)
+    - Backticks used outside the expected construct
+
+    Safe constructs that should be **allowed**:
+    - `"||"` for fallback chains: `"test -f config.sh || echo default"`
+    - `"&&"` with logical operations in expected contexts: `npm run lint && echo done"`
+    - `"${HOME}"`, `"$(pwd)"`, backticks inside safe contexts
+    - Redirections and pipes to non-shell commands: `> /tmp/out`, `| grep foo`
+
+    ```bash
+    # Sanitization function — return non-zero if the command is unsafe
+    sanitize_command() {
+      local cmd="$1"
+
+      # Block pipe to shell execution
+      if echo "$cmd" | grep -qP '\\|\\s*(bash|sh|zsh|ksh)\\b'; then
+        echo "REJECTED: Command pipes to shell execution."
+        return 1
+      fi
+
+      # Block obvious destructive patterns
+      if echo "$cmd" | grep -qP '(\\brm\\s+-rf\\s+\\\/|\\brm\\s+-rf\\s+\\*)\\b'; then
+        echo "REJECTED: Command contains destructive filesystem operations."
+        return 1
+      fi
+
+      # Block eval/exec of arbitrary strings
+      if echo "$cmd" | grep -qP '\\b(eval|exec)\\s+'; then
+        echo "REJECTED: Command uses eval/exec to interpret arbitrary strings."
+        return 1
+      fi
+
+      return 0
+    }
+
+    # Use the sanitization function
+    if ! sanitize_command "$COMMAND"; then
+      echo "Task $TASK_ID skipped: command rejected by security filter."
+      TASK_OUTPUT="REJECTED: Command failed security sanitization."
+      TASK_EXIT_CODE=1
+      TASK_FAILED=true
+      break
+    fi
+    ```
+
+2. **Run a single command with timeout and capture output.** Do **not** run the command twice. Use only the capture form:
+
+    ```bash
+    TASK_OUTPUT=$(timeout 300 bash -c "$COMMAND" 2>&1)
+    TASK_EXIT_CODE=$?
+    ```
+
+    The `timeout 300` limits each command to 5 minutes. The `bash -c "$COMMAND"` ensures directory changes are scoped to the subshell.
+
+3. **Handle working directory isolation.** The `bash -c` wrapper already isolates directory changes, so subsequent commands run in the original directory. No additional handling is needed.
 
 4. **Check Result:**
-   - **If Success (exit code 0):** Log the task as completed. If the output is empty, note "No output." If the output exceeds 10,000 characters, truncate to the last 5,000 characters and note "[truncated]".
-   - **If Failure (non-zero exit code):**
-     - Record the error output (last 50 lines if output is large).
-     - **STOP IMMEDIATELY.** Do not process remaining tasks.
-     - Report the failure with the error details.
+    - **If Success (exit code 0):** Log the task as completed. If the output is empty, note "No output." If the output exceeds 10,000 characters, truncate to the last 5,000 characters and note "[truncated]".
+    - **If Failure (non-zero exit code):**
+      - Record the error output (last 50 lines if output is large).
+      - **STOP IMMEDIATELY.** Do not process remaining tasks.
+      - Report the failure with the error details.
 
 5. **Handle commands requiring user interaction:** If a command appears to hang (no output for > 30 seconds), assume it requires user input. Kill the process and report: "Command appears to require interactive input. Aborting."
 

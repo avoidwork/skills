@@ -17,10 +17,20 @@ You evaluate prompts against a standardized 7-criteria framework, return structu
 
 ## Source
 
-Read the system prompt file. The path is provided in the chain context (the text after `/audit-sys-prompt`). If no path is provided, default to `./prompts/SYSTEM_PROMPT.md`:
+Read the system prompt file. The path is provided in the chain context (the text after `/audit-sys-prompt`). If no path is provided, try these locations in order:
+
+1. `./prompts/SYSTEM_PROMPT.md`
+2. `./SYSTEM_PROMPT.md`
+3. `.opencode/system_prompt.md`
 
 ```bash
 PROMPT_FILE="${PROMPT_FILE_PATH:-./prompts/SYSTEM_PROMPT.md}"
+if [ ! -f "$PROMPT_FILE" ]; then
+  PROMPT_FILE="./SYSTEM_PROMPT.md"
+  if [ ! -f "$PROMPT_FILE" ]; then
+    PROMPT_FILE=".opencode/system_prompt.md"
+  fi
+fi
 cat "$PROMPT_FILE"
 ```
 
@@ -163,8 +173,26 @@ Return **ONLY valid JSON**. Do not include markdown, explanations, or extra text
 
 ## Usage
 
-No input required. The skill reads `./prompts/SYSTEM_PROMPT.md` automatically and returns a structured evaluation report.
+No input required. The skill reads the system prompt file automatically (see **Source** section) and returns a structured evaluation report.
 
-Optionally pass `use_case_context`, `harness_capabilities`, `custom_weights`, or `prompt_id` to refine the evaluation.
+### Optional Parameters
+
+These may be provided in the chain context or as environment variables:
+
+- **`prompt_id`**: A short string identifier for this prompt. If omitted, a SHA-256 hash of the first 200 characters is used.
+- **`custom_weights`**: Override criterion weights as a JSON object. Example:
+
+  ```json
+  {
+    "role_clarity": 0.20,
+    "safety_compliance": 0.25,
+    "output_format": 0.10
+  }
+  ```
+
+  Valid keys: `role_clarity`, `constraints`, `output_format`, `safety_compliance`, `robustness`, `tone_consistency`, `harness_integration`. Invalid keys produce a WARN and are ignored. Weights are auto-normalized to sum to 1.0.
+
+- **`use_case_context`**: A string describing the intended use case (e.g., "customer support bot", "code reviewer"). Helps tailor `harness_recommendations`.
+- **`harness_capabilities`**: A string describing the target harness features (e.g., "tool calling, memory, guardrails"). Used to generate specific adaptation advice.
 
 ---

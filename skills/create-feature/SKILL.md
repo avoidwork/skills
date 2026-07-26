@@ -47,9 +47,36 @@ The user provides a list of goals/features in any format (natural language, JSON
 
 ## Step 0: Ensure Clean State
 
+**Create the memory directory if it does not exist:**
+
 ```bash
-git checkout main
-git pull origin main
+mkdir -p memory
+```
+
+**Determine the target repository dynamically from the git remote (needed for later gh commands):**
+
+```bash
+GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+if echo "$GIT_REMOTE" | grep -q '^git@'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+fi
+```
+
+```bash
+# Only checkout main if not already on it
+if [ "$(git branch --show-current)" != "main" ]; then
+  # Verify main exists on remote before pulling
+  REMOTE_MAIN=$(git ls-remote --heads origin main 2>/dev/null)
+  if [ -n "$REMOTE_MAIN" ]; then
+    git fetch origin main
+    git checkout main
+    git pull origin main
+  else
+    echo "WARNING: No remote branch 'main' found. Current branch '$(git branch --show-current)' will be used as-is."
+  fi
+fi
 ```
 
 Verify the working tree is clean:
@@ -251,9 +278,17 @@ Execute tasks using this procedure (simplified for the automated pipeline contex
 
 After completion, verify:
 - All tasks in `tasks.md` are marked `[x]`
-- Tests pass: `npm run test`
-- Lint passes: `npm run lint`
-- Coverage is maintained: `npm run coverage`
+
+**Check which npm scripts are available before running them** — not all projects define the same scripts:
+
+```bash
+AVAILABLE_SCRIPTS=$(node -e "console.log(Object.keys(require('./package.json').scripts || {}).join('\n'))" 2>/dev/null)
+```
+
+- If `test` script exists, run: `npm run test`
+- If `lint` script exists, run: `npm run lint`
+- If `coverage` script exists, run: `npm run coverage`
+- If no script exists in package.json, skip the step and note "No script defined — skipped."
 
 If any verification fails, fix the issues and re-verify.
 
@@ -261,32 +296,15 @@ If any verification fails, fix the issues and re-verify.
 
 ## Step 8: Verify Application Starts (`npm start`)
 
-After tasks are applied, verify the application actually starts without crashing:
+After tasks are applied, verify the application actually starts without crashing.
 
-```bash
-npm start
-```
-
-Run it in the background and watch for startup errors:
+**Run with a timeout** — this is the preferred method:
 
 ```bash
 timeout 10 npm start 2>&1 || true
 ```
 
-Or run it as a background process and check for immediate crashes:
-
-```bash
-npm start &
-APP_PID=$!
-sleep 5
-if kill -0 $APP_PID 2>/dev/null; then
-  echo "Application started successfully (PID $APP_PID)"
-  kill $APP_PID 2>/dev/null || true
-else
-  echo "WARNING: Application crashed on startup"
-fi
-wait $APP_PID 2>/dev/null || true
-```
+This ensures the process terminates after 10 seconds even if it hangs.
 
 If the application fails to start, fix the issue before proceeding. Do not skip this step — a crashing application means the implementation is flawed.
 

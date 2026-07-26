@@ -122,7 +122,7 @@ For each directory in the queue:
      \( -name '*.js' -o -name '*.ts' -o -name '*.jsx' -o -name '*.tsx' \)
    ```
 
-3. **Audit each file.** For each file, check for issues using concrete patterns. Reference AGENTS.md §1.1 (Forbidden Patterns) and §1.2 (Security Rules) for authoritative checks:
+3. **Audit each file.** For each file, check for issues using concrete patterns:
 
    **Bugs** — grep for common anti-patterns:
    ```bash
@@ -134,18 +134,26 @@ For each directory in the queue:
    grep -rn 'console\.log' "$file"
    ```
 
-   **Security** — grep for OWASP Top 10 violations (per AGENTS.md §1.2):
-   ```bash
-   # Hardcoded secrets
-   grep -rn 'password\s*=\s*["\x27]' "$file"
-   grep -rn 'api_key\s*=\s*["\x27]' "$file"
-   # eval() usage (forbidden per AGENTS.md §1.1)
-   grep -rn 'eval(' "$file"
-   # SQL injection vectors (string concatenation in queries)
-   grep -rn "query\s*.*\+\s*req" "$file"
-   # Missing auth middleware on routes
-   # (check route definitions for missing auth guards)
-   ```
+    **Security** — grep for OWASP Top 10 violations (per AGENTS.md §1.2):
+    ```bash
+    # Hardcoded secrets — capture count only, NEVER print values to issue body
+    SECRET_COUNT=$(grep -rnc 'password\s*=\s*["\x27]' "$file" 2>/dev/null | tail -1 | cut -d: -f2)
+    SECRET_COUNT=${SECRET_COUNT:-0}
+    # eval() usage (forbidden per AGENTS.md §1.1)
+    grep -rn 'eval(' "$file"
+    # SQL injection vectors (string concatenation in queries)
+    grep -rn "query\s*.*\+\s*req" "$file"
+    # Missing auth middleware on routes
+    # (check route definitions for missing auth guards)
+    ```
+
+    **CRITICAL:** When writing security findings to the issue body or state file, NEVER include the matched line content. Only report the pattern type and count:
+
+    ```
+    | [file] | security | critical | Potential hardcoded secret: password/api_key pattern detected (N occurrences) |
+    ```
+
+    The actual secret value must never appear in any output — it will be written to a GitHub issue via `gh issue edit`, exposed to anyone with repo access.
 
    **Performance** — grep for common issues:
    ```bash
@@ -183,14 +191,15 @@ For each directory in the queue:
    ```
 
 7. **Update State.** Mark the directory as completed in the state file:
-   ```bash
-   # Mark current phase as completed
-   sed -i "s/- \[ \] $CURRENT_PHASE/- [x] $CURRENT_PHASE/" "$STATE_FILE"
-   # Append findings
-   echo "" >> "$STATE_FILE"
-   echo "## Findings: $CURRENT_PHASE" >> "$STATE_FILE"
-   echo "[Findings stored here]" >> "$STATE_FILE"
-   ```
+    ```bash
+    # Use | as sed delimiter to safely handle directory paths containing /
+    ESCAPED_PHASE=$(echo "$CURRENT_PHASE" | sed 's/[|&]/\\&/g')
+    sed -i "s|- \[ \] $ESCAPED_PHASE|- [x] $ESCAPED_PHASE|" "$STATE_FILE"
+    # Append findings
+    echo "" >> "$STATE_FILE"
+    echo "## Findings: $CURRENT_PHASE" >> "$STATE_FILE"
+    echo "[Findings stored here]" >> "$STATE_FILE"
+    ```
 
 8. **Report Output.** Use the standard Output Format below.
 

@@ -13,53 +13,68 @@ You are the final step in the craft. Precision matters. Follow these steps in or
 
 ## 1. Read the Rules
 
-Before touching a single file, scan the project root and any specified paths for a `.agent` rules file and read its contents.
+Before touching a single file, scan the project root and any specified paths for an `AGENTS.md` rules file and read its contents.
 
-- Identify the required commit message format.
-- Identify the required PR title/body format.
-- **Crucially:** Locate and strictly follow **Rule 5.4**. If Rule 5.4 is not found, log a WARN and proceed without it — do not block on missing documentation.
+- Identify the required commit message format (e.g., Conventional Commits).
+- Identify the required PR title/body format (look for patterns like a PR template reference).
+- **Crucially:** Locate and strictly follow **Rule 5.4** (Pull Request Templates section). Extract the rules about how PR title and body should be constructed.
+- **If Rule 5.4 is not found:** Log a WARN and proceed without it — do not block on missing documentation.
 
-## 2. Create & Checkout a Branch
+## 2. Check for Detached HEAD
 
-Check if already on a feature branch. If the current branch matches `feat/*`, `fix/*`, `docs/*`, or `chore/*`, skip branch creation and proceed to Step 3:
+Before doing anything else, verify git is not in a detached HEAD state:
+
+```bash
+git branch --show-current
+```
+
+If the output is empty (detached HEAD), create a branch from the current commit:
+
+```bash
+git checkout -b "detached-fix-$(date +%s)"
+```
+
+## 3. Create & Checkout a Branch
+
+Check if already on a feature branch. If the current branch matches `feat/*`, `fix/*`, `docs/*`, or `chore/*`, skip branch creation and proceed to Step 4:
 
 ```bash
 CURRENT_BRANCH=$(git branch --show-current)
 if echo "$CURRENT_BRANCH" | grep -qE '^(feat|fix|docs|chore)/'; then
   echo "Already on feature branch: $CURRENT_BRANCH. Skipping branch creation."
 else
-  # Not on a feature branch — create one
   SYNTHESIZE_BRANCH=true
 fi
 ```
 
-If branch creation is needed, synthesize the branch name from the staged files. Run:
+If branch creation is needed (`SYNTHESIZE_BRANCH=true`), synthesize the branch name from the **currently staged files** (or unstaged if none are staged yet):
 
 ```bash
-git diff --cached --name-only
+# Show staged files
+CHANGED_FILES=$(git diff --cached --name-only 2>/dev/null || true)
+
+# If nothing is staged, show all changes (staged + unstaged)
+if [ -z "$CHANGED_FILES" ]; then
+  CHANGED_FILES=$(git diff --name-only 2>/dev/null || true)
+fi
 ```
 
-**Branch name strategy:** Prefer meaningful file paths over the first changed file. Use this priority:
-1. If any file matches a pattern like `src/<module>/*` or `tests/<module>/*`, use the module name as the slug.
-2. If no module pattern matches, use the first changed file's basename (strip directories, extensions, special characters).
-3. If no files are staged yet, use a generic slug from the commit type (e.g., `feat/update-config`).
+**Branch name strategy** (in priority order):
 
-Prepend the appropriate prefix based on the commit type (infer from the scanned project rules' commit message format, or default to `feat`):
-
-- `feat/<slug>` for new features
-- `fix/<slug>` for bug fixes
-- `docs/<slug>` for documentation changes
-- `chore/<slug>` for maintenance
-
-Then create and check out the branch:
+1. If `CHANGED_FILES` is empty (no changes), use a generic slug: `feat/no-changes`. Log a warning and proceed to staging.
+2. If any file matches `src/<module>/` or `tests/<module>/`, extract `<module>` as the slug.
+3. If no module pattern matches, take the first changed file: `FIRST_FILE=$(echo "$CHANGED_FILES" | head -1)`, extract basename, strip directories/extensions/special characters to form the slug.
+4. Prepend the appropriate prefix based on the commit type (inferred in Step 1 from the scanned rules, or default to `feat`).
 
 ```bash
-git checkout -b "<branch-name>"
+# Example synthesis — adapt to your actual rules:
+# If commit format uses "feat:", prefix is "feat"; if "fix:", prefix is "fix", etc.
+COMMIT_TYPE="feat"   # Infer from the rules scanned in Step 1, or default to feat.
+SLUG="$MODULE_NAME"  # Synthesized from CHANGED_FILES per the strategy above.
+git checkout -b "${COMMIT_TYPE}/${SLUG}"
 ```
 
-If the changes are mixed, default to `feat/<slug>`.
-
-## 3. Stage Everything
+## 4. Stage Everything
 
 ```bash
 git add -A
@@ -75,86 +90,214 @@ If there are untracked files that shouldn't be committed, ask the user or exclud
 
 **Check for no changes:** If `git status --porcelain` returns nothing after staging, there are no changes to commit. Report this and stop — do not create an empty commit.
 
-## 2.5. Check for Detached HEAD
+## 5. Commit
 
-Before creating a branch, verify git is not in a detached HEAD state:
+Craft the commit message based on the commit message format identified in Step 1.
 
-```bash
-git branch --show-current
-```
+### 5.1 Determining the commit type
 
-If the output is empty (detached HEAD), create a branch from the current commit first:
-```bash
-git checkout -b "detached-fix-$(date +%s)"
-```
+- If the rules specify Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, etc.), use the prefix that best matches the bulk of changes.
+- For documentation-only changes: `docs:`
+- For bug fixes: `fix:`
+- For new skills/features: `feat:`
+- For maintenance: `chore:`
 
-## 4. Commit
+### 5.2 Crafting the message
 
-Craft the commit message according to the scanned project rules.
-
-```bash
-git commit -m "<your-message-here>"
-```
-
-## 5. Push
-
-Push the current branch to the remote.
+Keep the subject line under 72 characters. Summarize the change in imperative mood.
 
 ```bash
-git push origin HEAD
+git commit -m "<type>: <subject>"
 ```
 
-**Handle push failures:** If the push fails:
-- **Remote not configured:** Report the error and suggest adding a remote (`git remote add origin <url>`).
-- **Permission denied:** Report the error and suggest checking SSH keys or token permissions.
-- **Merge conflicts:** If the remote has commits not present locally, suggest rebasing (`git rebase origin/main`) before pushing.
-- **Other errors:** Report the error and stop. Do not proceed to PR creation.
+Example:
+```bash
+git commit -m "docs: correct branch naming in AGENTS.md"
+```
 
-## 6. Check for Existing PR
-
-Before creating a new PR, check whether one already exists for this branch.
+If the changes span multiple categories, choose the most impactful one and add a body line for additional clarity:
 
 ```bash
-EXISTING_PR_URL=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json url --jq '.[0].url')
+git commit -m "<type>: <subject>
+
+Additional context if needed."
 ```
 
-- If a URL is returned, **do not create a new PR**. Extract the PR number from the URL and output it in a parseable format:
+## 6. Push
+
+**AGENTS.md §1.3 is non-negotiable: Never push without user approval.**
+
+Before pushing, **explicitly ask the user**: "Push to remote? (Y/n)"
+
+```bash
+read -r -p "Push to remote? (Y/n) " RESPONSE
+if [ "${RESPONSE:-Y}" = "Y" ] || [ "${RESPONSE:-Y}" = "y" ] || [ -z "$RESPONSE" ]; then
+  git push origin HEAD
+else
+  echo "Push cancelled by user. Branch '$(git branch --show-current)' is ready but not pushed."
+  echo "To push manually: git push origin HEAD"
+  exit 0
+fi
+```
+
+**Handle push failures:**
+
+| Failure | Action |
+|---------|--------|
+| Remote not configured | Report error and suggest adding a remote (`git remote add origin <url>`) |
+| Permission denied | Report error and suggest checking SSH keys or token permissions |
+| Merge conflicts | Report error and suggest rebasing (`git rebase origin/main`) before pushing |
+| Other errors | Report error and stop. Do not proceed to PR creation |
+
+## 7. Check for Existing PR
+
+Before creating a new PR, check whether one already exists:
+
+```bash
+EXISTING_PR_URL=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json url --jq '.[0].url' 2>/dev/null || true)
+```
+
+- **If a URL is returned:** Do **not** create a new PR. Extract the PR number and output it:
   ```bash
   EXISTING_PR_NUMBER=$(echo "$EXISTING_PR_URL" | grep -oP '/pull/\K\d+')
   echo "PR_NUMBER=$EXISTING_PR_NUMBER"
   echo "EXISTING_PR=$EXISTING_PR_URL"
   ```
-  Then skip to step 8.
-- If no URL is returned, proceed to step 7.
+  Then skip to Step 9.
 
-## 7. Open a Pull Request
+- **If no URL is returned:** Proceed to Step 8.
 
-**Verify `gh` CLI is available:** Before creating a PR, ensure the `gh` CLI is installed and authenticated:
+## 8. Open a Pull Request
+
+**Verify `gh` CLI is authenticated:**
+
 ```bash
 gh auth status 2>&1
 ```
-If `gh` is not authenticated, suggest running `gh auth login` and stop.
 
-Use the project's standard PR tool (usually `gh pr create`).
+If authenticated, continue. If not, report `gh` authentication failure and instruct the user to run `gh auth login`.
 
-- Title: Follow the scanned project rules format.
-- Body: Summarize the changes, reference any related issues, and ensure **Rule 5.4** is visibly addressed in the description.
-- Assign the PR to the repository owner (Jason Mulligan / `avoidwork`).
+### 8.1 Synthesize PR Title
 
-**Finding related issues:** Search for issue references in commit messages (e.g., "fixes #123", "closes #456") and include them in the PR body. If no issue references are found, note "No related issues referenced."
+- Follow the commit message format from Step 1 if specific rules exist.
+- Use the same type prefix and summary as the commit message.
+
+Example: `docs: correct branch naming in AGENTS.md`
+
+### 8.2 Synthesize PR Body
+
+Pull the PR body from the project's template. The template path is defined by Rule 5.4. The standard location is `.github/PULL_REQUEST_TEMPLATE.md` — try it first. If it does not exist, check `.github/gh-pull_request_template.md`, then `.github/PULL_REQUEST_TEMPLATE.md` in other common variants. If none exist, generate a minimal body from the available context.
 
 ```bash
-gh pr create --title "<title>" --body "<body>" --assignee avoidwork
+# Try common template locations in order
+TEMPLATE_PATHS=(
+  ".github/PULL_REQUEST_TEMPLATE.md"
+  ".github/gh-pull_request_template.md"
+)
+
+TEMPLATE_FILE=""
+for path in "${TEMPLATE_PATHS[@]}"; do
+  if [ -f "$path" ]; then
+    TEMPLATE_FILE="$path"
+    break
+  fi
+done
 ```
 
-After creating the PR, extract and output the PR number in a parseable format:
+**If a template file was found** (`TEMPLATE_FILE` is set), read it as the base body and fill in each section with the actual content:
+
+- Replace inline placeholders (e.g., `<fill-in>`, `<!-- ... -->`, `[ ]` checkboxes).
+- If the template has no fillable placeholders, append the content as a "Details" section at the end.
+
+Construct the body from available context:
+
+```markdown
+<TEMPLATE_FILE_CONTENT>
+
+---
+
+### Details
+
+**Commit(s):** \`<commit subject>\`
+
+**Changed files:** \`<comma-separated changed filenames, shortened>\`
+
+**Rule 5.4:** PR template at \`<TEMPLATE_FILE>\` was used. All sections filled.
+```
+
+**If no template file exists**, generate a minimal body from the commit and file context:
+
+```markdown
+**Commit:** \`<commit message>\`
+
+**Changed files:** \`<comma-separated changed filenames>\`
+
+### 8.3 Create the PR
+
+**If `TEMPLATE_FILE` was found in Step 8.2:** Use it as the PR body (Rule 5.4 compliance). Fill in every section from the template — do not leave any blank. If a section is not applicable, write `N/A`.
 
 ```bash
-NEW_PR_NUMBER=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json number --jq '.[0].number')
+# Fill in the template and pass it as the PR body
+# Option A: gh pr create accepts a file path via --body-file
+gh pr create \
+  --title "<synthesized-title>" \
+  --body-file "$TEMPLATE_FILE" \
+  --base main \
+  --assignee avoidwork \
+  --label "<inferred-label>"
+```
+
+If `gh pr create` does not support `--body-file` in your version, use stdin:
+
+```bash
+gh pr create \
+  --title "<synthesized-title>" \
+  --body "@-" \
+  --base main \
+  --assignee avoidwork \
+  --label "<inferred-label>" < "$TEMPLATE_FILE"
+```
+
+**If no template file exists:** Generate a minimal body and pass it directly:
+
+```bash
+MINIMAL_BODY="$(printf "%s" "* **Commit:** \`<commit message>\`
+
+* **Changed files:** \`<comma-separated changed filenames>\`")
+
+gh pr create \
+  --title "<synthesized-title>" \
+  --body "$MINIMAL_BODY" \
+  --base main \
+  --assignee avoidwork \
+  --label "<inferred-label>"
+```
+
+**Label selection:** Infer from the commit type determined in Step 5.1:
+- If the subject starts with or implies a bug fix → `--label "bug"`
+- Otherwise → `--label "feature"`
+- If multiple types are present, use `"bug"` only if any commit is a fix; otherwise `"feature"`
+
+**After creating the PR**, extract and output the number:
+
+```bash
+NEW_PR_NUMBER=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json number --jq '.[0].number' 2>/dev/null || true)
 echo "PR_NUMBER=$NEW_PR_NUMBER"
 ```
 
-## 8. Verification
+If `NEW_PR_NUMBER` is empty, fall back to extracting from the PR URL:
 
-- Confirm the PR was created successfully (or note the existing PR URL from step 6).
-- Print the PR URL for the user.
+```bash
+NEW_PR_URL=$(gh pr view --json url --jq '.url' 2>/dev/null || true)
+echo "PR_URL=$NEW_PR_URL"
+```
+
+## 9. Verification
+
+- Confirm the PR was created successfully (or note the existing PR URL from Step 7).
+- Output the PR URL for the user so they can review it.
+
+Example output:
+```
+PR created: https://github.com/<owner>/<repo>/pull/<number>
+```

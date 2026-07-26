@@ -142,24 +142,13 @@ npm run changelog
 
 This installs dependencies (ensuring lockfile is current), runs `build` if the project has one (**must succeed** if present — a broken build is a broken release), and generates an updated `CHANGELOG.md` using `auto-changelog`. The `--ignore-scripts` flag prevents postinstall scripts from running during the version bump. If `npm i` fails, abort immediately — do not proceed to commit a broken state.
 
-## Step 8: Verify Branch and Run commit-push
+## Step 8: Trigger commit-push
 
-Before delegating, verify you're not on `main`. Running this skill on `main` will create a broken PR.
-
-```bash
-CURRENT_BRANCH=$(git branch --show-current)
-if [ "$CURRENT_BRANCH" = "main" ]; then
-  echo "ERROR: Cannot run update-semver on 'main'. Create a release branch first."
-  exit 1
-fi
-echo "Branch: $CURRENT_BRANCH"
-```
-
-Then trigger the `commit-push` skill. This will:
+Delegating version release to `commit-push`, which will:
 1. Scan for AGENTS.md to read project rules
 2. Stage all changes
 3. Commit with a conventional commit message (e.g., `chore: release v1.3.8`)
-4. Push to the remote
+4. Push to the remote — **asks user for explicit approval first** (AGENTS.md §1.3)
 5. Open a PR targeting `main`
 
 ```
