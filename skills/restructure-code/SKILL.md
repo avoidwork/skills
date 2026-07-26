@@ -213,9 +213,17 @@ $PROPOSED_STRUCTURE
 3. $LOW_PRIORITY_ITEMS
 BODYEOF
 
-# Update the issue
+# Update the issue — use dynamic repo variable derived from git remote
+GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+if echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+  GH_REPO_OPT="--repo $REPO"
+else
+  GH_REPO_OPT=""
+fi
+
 if [ "$ISSUE_NUMBER" != "unknown" ]; then
-  gh issue edit "$ISSUE_NUMBER" --body-file "$BODY_FILE" --repo avoidwork/madz 2>&1
+  gh issue edit "$ISSUE_NUMBER" --body-file "$BODY_FILE" $GH_REPO_OPT 2>&1
   if [ $? -ne 0 ]; then
     echo "WARNING: Failed to update issue body. Issue $ISSUE_NUMBER exists but body was not updated."
   fi
@@ -238,9 +246,10 @@ rm -f "$BODY_FILE"
 After completing the phase (issue created or no issues found), update the state file:
 
 1. **Mark the current directory as completed** in the phase queue:
-   ```bash
-   # Replace [ ] with [x] for the current directory in the state file
-   sed -i "s/- \[ \] $CURRENT_DIR/- [x] $CURRENT_DIR/" memory/restructure-state.md
+    ```bash
+    # Use | as sed delimiter instead of / to handle directory paths safely
+    ESCAPED_DIR=$(echo "$CURRENT_DIR" | sed 's/[|/]/\\&/g')
+    sed -i "s|- \[ \] $ESCAPED_DIR|- [x] $ESCAPED_DIR|" memory/restructure-state.md
    ```
 2. **Append to Completed section:**
    ```bash

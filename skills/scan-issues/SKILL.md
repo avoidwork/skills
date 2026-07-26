@@ -1,6 +1,6 @@
 ---
 name: scan-issues
-description: Scans GitHub for open issues labeled 'approved' but not 'in progress', then processes each sequentially via fix-issue. Runs hourly.
+description: Scans GitHub for open issues labeled 'approved' (excluding those also labeled 'in progress'), then processes each sequentially via fix-issue. Runs hourly.
 license: BSD 3-Clause
 compatibility: Requires gh CLI authenticated with the avoidwork/madz repo. Must be run from the project root.
 metadata:

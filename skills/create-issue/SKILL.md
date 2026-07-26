@@ -47,21 +47,39 @@ Read the appropriate template from disk, then populate every section with synthe
 
 **Read the template first** — the skill must load the actual file from `.github/ISSUE_TEMPLATE/` so it stays in sync with whatever is on disk:
 
-- **fix** → `cat .github/ISSUE_TEMPLATE/bug_report.md`
-- **feat** → `cat .github/ISSUE_TEMPLATE/feature_request.md`
+- **fix** → first try `.github/ISSUE_TEMPLATE/bug_report.md`, fall back to `.github/ISSUE_TEMPLATE.md`
+- **feat** → first try `.github/ISSUE_TEMPLATE/feature_request.md`, fall back to `.github/ISSUE_TEMPLATE.md`
 
-**Verify template exists before reading:**
+**Verify template exists before reading**; fall back gracefully:
+
 ```bash
-if [ ! -f ".github/ISSUE_TEMPLATE/bug_report.md" ]; then
-  echo "ERROR: bug_report.md template not found"
+# Determine which template to use
+if [ "$CATEGORY" = "fix" ]; then
+  TEMPLATE_PATH=".github/ISSUE_TEMPLATE/bug_report.md"
+else
+  TEMPLATE_PATH=".github/ISSUE_TEMPLATE/feature_request.md"
+fi
+
+# Try the specific template first, then fall back to the general one
+if [ ! -f "$TEMPLATE_PATH" ]; then
+  TEMPLATE_PATH=".github/ISSUE_TEMPLATE.md"
+fi
+
+# If nothing exists, report error and stop
+if [ ! -f "$TEMPLATE_PATH" ]; then
+  echo "ERROR: No issue template found. Expected one of:"
+  echo "  .github/ISSUE_TEMPLATE/bug_report.md"
+  echo "  .github/ISSUE_TEMPLATE/feature_request.md"
+  echo "  .github/ISSUE_TEMPLATE.md"
   exit 1
 fi
 ```
 
-The template may contain YAML frontmatter — strip it before populating. Use `sed` to remove lines between the first `---` and second `---`:
+The template may contain YAML frontmatter — strip it before populating. Use `sed` to remove lines between the first `---` and second `---` portably (with `-e` for multi-command):
+
 ```bash
 # Strip YAML frontmatter (lines between first and second ---)
-sed '1,/^---$/d; /^---$/,$d' ".github/ISSUE_TEMPLATE/bug_report.md"
+sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH"
 ```
 
 **Rules for synthesis:**
@@ -94,11 +112,13 @@ sed '1,/^---$/d; /^---$/,$d' ".github/ISSUE_TEMPLATE/bug_report.md"
    ```
    Replace each line's placeholder with the actual value. Preserve the `**KEY**:` format.
 
-4. **CRITICAL: Do not embed `#` characters** — GitHub interprets `#` as a link trigger. When writing values, never include `#`. For example:
-   - ❌ `issue #290` → ✅ `issue 290`
-   - ❌ `line #42` → ✅ `line 42`
-   - ❌ `v25#8` → ✅ `v25.8`
-   This applies to the entire issue body, not just the Environment section. If you're synthesizing content that would naturally include `#` (like issue references or line numbers), omit the character.
+4. **Handle `#` characters carefully** — GitHub interprets `#` as a link trigger in certain contexts. When writing values, **always omit `#` in inline content**:
+
+    - ❌ `issue #290` in prose → ✅ `issue 290` in prose
+    - ❌ `line #42` → ✅ `line 42`
+    - ❌ `v25#8` → ✅ `v25.8`
+
+    **Exception:** Issue references in the form `#<number>` (e.g., `resolves #42`, `see #17`) are **preserved** and SHOULD NOT be stripped — GitHub uses them to create clickable links to those issues. This rule applies only to stray `#` characters in content, not to valid GitHub issue references.
 
 5. **Write the updated body** to the temp file before proceeding to step 5.
 
@@ -123,6 +143,33 @@ After:
 
 **This is the hard stop.** You must create the GitHub issue *now*, with nothing more than the synthesized title and description. No codebase search. No audit. No looking at files. The issue must exist on GitHub before you touch a single source file.
 
+**Determine the target repository dynamically from the git remote.** Never hardcode a repo name:
+
+```bash
+# Extract owner/repo from git remote URL — handles both HTTPS and SSH
+GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+if [ -z "$GIT_REMOTE" ]; then
+  echo "ERROR: No git remote 'origin' found. Cannot determine repository."
+  exit 1
+fi
+
+GH_REPO_FLAG=""
+# SSH format: git@github.com:owner/repo.git
+if echo "$GIT_REMOTE" | grep -q '^git@'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+  GH_REPO_FLAG="--repo $GH_REPO"
+# HTTPS format: https://github.com/owner/repo.git or https://TOKEN@github.com/owner/repo.git
+elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+  GH_REPO_FLAG="--repo $GH_REPO"
+fi
+
+if [ -z "$GH_REPO" ]; then
+  echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'. Cannot create issue."
+  exit 1
+fi
+```
+
 **Execution order is non-negotiable:**
 1. Synthesize title and description (steps 2–4)
 2. Populate Environment section if present (step 4.5)
@@ -130,30 +177,17 @@ After:
 4. *Then and only then* proceed to the audit (step 6)
 
 ```bash
-# Map category to GitHub label
-if [ "$CATEGORY" = "fix" ]; then
-  LABEL="bug"
-else
-  LABEL="feature"
-fi
-
 BODY_FILE=$(mktemp)
 
-# Replace placeholders with actual values before writing to temp file
-# <SYNTHESIZED_TITLE> → actual title string
-# <FULL_TEMPLATE_BODY> → actual populated template body
-# <ISSUE_NUMBER> → actual issue number (for audit section)
-# <AUDIT_SECTION> → actual audit markdown content
-
-cat > "$BODY_FILE" << EOF
+cat > "$BODY_FILE" << BODYEOF
 $(echo "$FULL_TEMPLATE_BODY" | sed "s|<SYNTHESIZED_TITLE>|$SYNTHESIZED_TITLE|g")
-EOF
+BODYEOF
 
 ISSUE_URL=$(gh issue create \
   --title "$SYNTHESIZED_TITLE" \
   --body-file "$BODY_FILE" \
   --label "$LABEL" \
-  --repo avoidwork/madz)
+  $GH_REPO_FLAG)
 
 ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '/issues/\K\d+')
 
@@ -221,20 +255,20 @@ cat > "$AUDIT_FILE" << AUDITEOF
 - <more findings...>
 AUDITEOF
 
-gh issue edit <ISSUE_NUMBER> --body-file "$AUDIT_FILE" --repo avoidwork/madz
+gh issue edit "$ISSUE_NUMBER" --body-file "$AUDIT_FILE" $GH_REPO_FLAG
 rm -f "$AUDIT_FILE"
 ```
 
 3. **Verify the audit notes are present.** Read the issue back and confirm the audit section exists:
 
 ```bash
-VERIFY=$(gh issue view <ISSUE_NUMBER> --json body --jq '.body')
+VERIFY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' $GH_REPO_FLAG)
 if echo "$VERIFY" | grep -q "Audit Findings"; then
   echo "Audit notes verified on issue."
 else
   echo "WARNING: Audit notes not found on issue. Retrying..."
   # Retry once with the same append logic
-  echo -e "${CURRENT_BODY}${AUDIT_SECTION}" | gh issue edit <ISSUE_NUMBER> --body-file - --repo avoidwork/madz
+  echo -e "${CURRENT_BODY}${AUDIT_SECTION}" | gh issue edit "$ISSUE_NUMBER" --body-file - $GH_REPO_FLAG
 fi
 ```
 

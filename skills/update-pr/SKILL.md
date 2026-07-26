@@ -22,12 +22,27 @@ Update an existing pull request's title and description following project conven
 
 1. **Identify the PR**
 
-   The PR number is provided in the chain context (the text after `/update-pr`). If no PR number is provided, report an error and stop — this skill requires a specific PR to update.
+    The PR number is provided in the chain context (the text after `/update-pr`). If no PR number is provided, report an error and stop — this skill requires a specific PR to update.
 
-   Confirm the PR exists:
-   ```bash
-   gh pr view <PR_NUMBER> --json title,state,url --repo avoidwork/madz
-   ```
+    **Determine the target repository dynamically from the git remote.** Never hardcode a repo name:
+
+    ```bash
+    # Extract owner/repo from git remote URL — handles both HTTPS and SSH
+    GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+    if echo "$GIT_REMOTE" | grep -q '^git@'; then
+      GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+    elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+      GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+    else
+      echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
+      exit 1
+    fi
+    ```
+
+    Confirm the PR exists:
+    ```bash
+    gh pr view <PR_NUMBER> --json title,state,url --repo "$GH_REPO"
+    ```
 
 2. **Scan Project Rules**
 
@@ -112,23 +127,18 @@ Update an existing pull request's title and description following project conven
 
 7. **Apply via `gh api`**
 
-   **Never use `gh pr edit`** — it fails in this repo. Use the GitHub API instead:
+    **Never use `gh pr edit` — it fails in this repo.** Use the GitHub API instead. Continue using the `$GH_REPO` variable extracted in Step 1:
 
-   ```bash
-   # Determine repo from git remote
-   REPO=$(git remote get-url origin | sed 's/.*:\(.*\)\.git$/\1/' | sed 's/.*\///')
-   OWNER=$(echo "$REPO" | cut -d'/' -f1)
-   PROJECT=$(echo "$REPO" | cut -d'/' -f2)
+    ```bash
+    gh api "repos/$GH_REPO/pulls/<PR_NUMBER>" \
+      -f title="<DRAFTED_TITLE>" \
+      -f body="<DRAFTED_BODY>"
+    ```
 
-   gh api "repos/$OWNER/$PROJECT/pulls/<PR_NUMBER>" \
-     -f title="<DRAFTED_TITLE>" \
-     -f body="<DRAFTED_BODY>"
-   ```
-
-   **Handle API errors:** If the API call returns a non-200 status, report the error and stop. Common errors:
-   - **403 Forbidden:** Check authentication and permissions
-   - **404 Not Found:** Verify PR number and repo
-   - **422 Unprocessable Entity:** Check title/body format (title under 72 chars, body not empty)
+    **Handle API errors:** If the API call returns a non-200 status, report the error and stop. Common errors:
+    - **403 Forbidden:** Check authentication and permissions
+    - **404 Not Found:** Verify PR number and repo
+    - **422 Unprocessable Entity:** Check title/body format (title under 72 chars, body not empty)
 
    **Coverage verification:** The skill instructs to "Confirm 100% line coverage maintained" but there's no way to verify this without running tests. If code changes were made, run `npm run coverage` and check the output. If no code changes were made (docs-only, config-only), note "No code changes — coverage N/A."
 
@@ -139,14 +149,14 @@ Update an existing pull request's title and description following project conven
 ## Example
 
 ```bash
-gh api repos/avoidwork/madz/pulls/214 \
-  -f title="docs: rename OpenSpec change directory and archive core-architecture-spec" \
-  -f body="## Description\n\nRenamed the \`core-architecture-spec\` OpenSpec change...\n\n## Type of Change\n\n- [x] Documentation update\n- [x] Refactor (no functional changes)\n\n## Testing\n\nN/A — spec-only change, no code modified.\n\n## Coverage\n\n- [x] 100% line coverage maintained (no code changes)\n\n## Checklist\n\n- [x] \`npm run lint\` passes\n- [x] Tests pass with 100% line coverage\n- [x] No forbidden patterns used\n- [x] Conventional Commit style applied\n"
+gh api "repos/$GH_REPO/pulls/<PR_NUMBER>" \
+  -f title="feat: add OpenAPI spec generation for REST endpoints" \
+  -f body="## Description\n\nAdded automatic OpenAPI spec generation for all REST endpoints.\n\n## Type of Change\n\n- [x] New feature\n\n## Testing\n\n- [x] Unit tests included\n\n## Coverage\n\n- [x] 100% line coverage maintained\n\n## Checklist\n\n- [x] Conventional Commit style applied\n"
 ```
 
 ## Guardrails
 
-- Always scan project rules with `scanAgents` before drafting — conventions may vary per project
+- Always scan project rules by reading `AGENTS.md` (or `README.md`) from the project root before drafting — conventions may vary per project
 - Synthesize title and description from the delta between branch and target — take all changes into account
 - Never leave PR template sections blank; use `N/A`
 - Use `gh api`, never `gh pr edit`

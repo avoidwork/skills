@@ -88,7 +88,7 @@ If no version found yet and `pom.xml` exists:
 
 ```bash
 if [ -z "$TAG_VERSION" ] && [ -f pom.xml ]; then
-  TAG_VERSION=$(grep -m1 '<version>' pom.xml | sed 's|.*<version>\([^<]*\)</version>.*|\1/' | head -1)
+  TAG_VERSION=$(grep -m1 '<version>' pom.xml | sed 's|.*<version>\([^<]*\)</version>.*|\1|' | head -1)
   if [ -n "$TAG_VERSION" ]; then
     echo "TAG_VERSION=$TAG_VERSION"
     VERSION_SOURCE="pom.xml"
@@ -110,7 +110,7 @@ if [ -z "$TAG_VERSION" ] && [ -f pubspec.yaml ]; then
 fi
 ```
 
-### 1g. Ruby (Gemfile or *.gemspec)
+### 1g. Ruby (.gemspec)
 
 If no version found yet, check Gemfile or gemspec:
 

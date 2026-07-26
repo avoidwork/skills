@@ -25,9 +25,26 @@ Strip any non-numeric characters and extract the numeric ID. If no ID was provid
 
 ### Step 2: Fetch Issue Details
 
-Set the repo variable (default to `avoidwork/madz` if not provided in chain context):
+Determine the target repository dynamically from the git remote. Never hardcode a repo name:
+
 ```bash
-REPO="${REPO:-avoidwork/madz}"
+# Extract owner/repo from git remote URL — handles both HTTPS and SSH
+GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+if [ -z "$GIT_REMOTE" ]; then
+  echo "ERROR: No git remote 'origin' found. Can't determine repository."
+  exit 1
+fi
+
+# SSH format: git@github.com:owner/repo.git
+if echo "$GIT_REMOTE" | grep -q '^git@'; then
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+# HTTPS format: https://github.com/owner/repo.git
+elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+else
+  echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
+  exit 1
+fi
 ```
 
 ```bash
@@ -123,15 +140,30 @@ Keep the chain instruction under 300 characters to avoid parsing issues.
 
 **Skip this step if create-feature failed.** If create-feature failed (per Step 6 error handling), do not attempt to comment — the PR was never created.
 
-Extract the PR number from the `create-feature` invocation result. The PR number appears in the output as `#<NUMBER>` (e.g., "PR #456 created"). Parse it:
+Extract the PR number from the `create-feature` invocation result. The PR number may appear in several formats depending on where create-feature is in its pipeline. Try each pattern:
 
 ```bash
-# Extract PR number from create-feature result — look for "PR #<NUMBER>" pattern
-PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'PR #\K\d+' | head -1)
+# Try 1: Look for "PR_NUMBER=<NUMBER>" pattern from commit-push output
+PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'PR_NUMBER=\K\d+' | head -1)
+
+# Try 2: Look for "PR:" followed by a URL — create-feature Step 14 format
 if [ -z "$PR_NUMBER" ]; then
-  # Fallback: look for any standalone number after "Fixed in #"
-  PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'Fixed in #\K\d+' | head -1)
+  PR_URL=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP '(?<=PR: )https://[^ ]+' | head -1)
+  if [ -n "$PR_URL" ]; then
+    PR_NUMBER=$(echo "$PR_URL" | grep -oP 'pull/\K\d+')
+  fi
 fi
+
+# Try 3: Look for "#<NUMBER>" — legacy format
+if [ -z "$PR_NUMBER" ]; then
+  PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'PR\s*#\K\d+' | head -1)
+fi
+
+# Try 4: Look for "Fixed in #" — legacy format
+if [ -z "$PR_NUMBER" ]; then
+  PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'Fixed in\s*#\K\d+' | head -1)
+fi
+```
 
 if [ -z "$PR_NUMBER" ]; then
   echo "WARNING: Could not extract PR number from create-feature output. Skipping comment."
