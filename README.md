@@ -1,4 +1,4 @@
-# madz-dev-skills
+# Skills
 
 A collection of Agent Skills for software development — issue tracking, feature implementation, git workflows, and release management. Skills chain together to form autonomous development pipelines.
 
