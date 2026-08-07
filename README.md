@@ -1,6 +1,6 @@
 # madz-dev-skills
 
-A collection of Agent Skills for building, maintaining, and releasing AI harness applications and OSS projects. These skills power the autonomous development pipeline — from issue creation to tagged releases.
+A collection of Agent Skills for software development — issue tracking, feature implementation, git workflows, and release management. Skills chain together to form autonomous development pipelines.
 
 ## Overview
 
