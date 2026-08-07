@@ -36,7 +36,6 @@ Skills for implementing features from specification to shipped code.
 | Skill | Description |
 |-------|-------------|
 | **create-feature** | Orchestrates the full feature lifecycle: receives goals, synthesizes specs via OpenSpec, commits specs to PR, applies tasks, audits results, updates the PR, and archives the change. |
-| **task-queue** | Accepts a list of tasks (JSON or natural language), executes shell commands sequentially with fail-fast logic, and reports a structured summary. |
 
 ### Git & PR Workflow
 
