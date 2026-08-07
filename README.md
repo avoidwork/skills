@@ -1,13 +1,20 @@
 # Skills
 
-A collection of Agent Skills for software development — issue tracking, feature implementation, git workflows, and release management. Skills chain together to form autonomous development pipelines.
+Agent Skills for software development — issue tracking, feature implementation, git workflows, and release management.
 
-## Overview
+Each skill is a self-contained, spec-compliant Agent Skill (`SKILL.md`) that orchestrates a specific workflow. Skills chain together to form larger pipelines.
 
-Each skill is a self-contained, spec-compliant Agent Skill (`SKILL.md`) that orchestrates a specific workflow. Skills chain together to form larger pipelines:
+## Quick Start
 
-```
-create-issue → fix-issue → create-feature → commit-push → update-pr → update-semver → git-tag
+```bash
+# Create an issue
+create-issue "Fix crash on empty input"
+
+# Fix an approved issue
+fix-issue 42
+
+# Scan for all approved issues and fix them
+scan-issues
 ```
 
 ## Skill Catalog
@@ -18,9 +25,9 @@ Skills for creating, tracking, and resolving issues.
 
 | Skill | Description |
 |-------|-------------|
-| **create-issue** | Receives a user description, synthesizes a title/description, categorizes as fix/feat, creates a GitHub issue, audits the codebase for actionable details, and updates the issue with findings. |
-| **fix-issue** | Accepts a GitHub issue ID, validates it's approved for work (checks `approved` label), marks it `in progress`, and chains to `create-feature` for full implementation. |
-| **scan-issues** | Autonomous issue scanner — finds open issues labeled `approved` (not `in progress`) and processes each sequentially via `fix-issue`. Designed to run hourly via cron. |
+| **create-issue** | Receives a description, synthesizes a title and description, categorizes as `bug` or `feature`, creates a GitHub issue, audits the codebase, and appends findings. |
+| **fix-issue** | Accepts an issue ID, validates approval (`approved` label), marks it `in progress`, and chains to `create-feature` for implementation. |
+| **scan-issues** | Finds open issues labeled `approved` (excluding `in progress`), creates a git worktree for each, and processes them sequentially via `fix-issue`. Designed for hourly cron execution. |
 
 ### Feature Development
 
@@ -28,7 +35,7 @@ Skills for implementing features from specification to shipped code.
 
 | Skill | Description |
 |-------|-------------|
-| **create-feature** | Orchestrates the full feature lifecycle: receives goals, synthesizes detailed specs via OpenSpec, proposes changes, commits & pushes, applies tasks, audits results, updates the PR, posts audit results as a comment, and archives the change. Requires a 30–60 minute timeout for the full pipeline. |
+| **create-feature** | Orchestrates the full feature lifecycle: receives goals, synthesizes specs via OpenSpec, commits specs to PR, applies tasks, audits results, updates the PR, and archives the change. |
 | **task-queue** | Accepts a list of tasks (JSON or natural language), executes shell commands sequentially with fail-fast logic, and reports a structured summary. |
 
 ### Git & PR Workflow
@@ -37,9 +44,9 @@ Skills for managing git operations and pull requests.
 
 | Skill | Description |
 |-------|-------------|
-| **commit-push** | Automates the complete git workflow: scans project rules for conventions, stages all changes, commits with a conventional commit message, pushes to the remote, and opens a Pull Request. Handles branch creation, PR template compliance, and existing PR detection. |
+| **commit-push** | Automates the complete git workflow: scans project rules, stages all changes, commits with a conventional commit message, pushes to the remote, and opens a Pull Request. Handles branch creation, PR template compliance, and existing PR detection. |
 | **update-pr** | Updates an existing PR's title and description by scanning project rules and the PR template, synthesizing both from the full delta between branch and target, then applying changes via `gh api`. |
-| **purge-branches** | Deletes all local branches except `main` via `npm run purge-branches`. Use for cleaning up stale branches without switching branches. |
+| **purge-branches** | Deletes all local branches except `main`. Pure git — no npm or package.json dependency. |
 
 ### Release Management
 
@@ -47,9 +54,9 @@ Skills for versioning, building, and publishing releases.
 
 | Skill | Description |
 |-------|-------------|
-| **update-semver** | Audits the delta between HEAD and the current version tag, decides major/minor/patch bump, updates `package.json`, runs `npm i`, executes the build (must succeed if present), generates a changelog, triggers `commit-push`, enables auto-merge on the PR, and announces the new version. Does NOT create a git tag — that is handled by `git-tag` after the PR merges. |
-| **git-tag** | Reads `package.json` version, synthesizes a change description from the git history delta, creates an annotated git tag (no `v` prefix), and pushes it to origin. |
-| **release-madz** | Builds and pushes all Docker images for the madz project via `npm run docker:release:all`. Runs as a foreground process. **Idempotent but not retryable** — Docker image tags are immutable. |
+| **update-semver** | Audits the delta between HEAD and the current version tag, decides major/minor/patch bump, updates `package.json`, runs `npm i` and changelog generation, triggers `commit-push`, and enables auto-merge. Does NOT create a git tag — that is handled by `git-tag` after the PR merges. |
+| **git-tag** | Reads version from `package.json` (or other package manager files), synthesizes a change description from git history, creates an annotated git tag (no `v` prefix), and pushes it to origin. |
+| **release-madz** | Builds and pushes all Docker images for the madz project via `npm run docker:release:all`. Runs as a foreground process. |
 
 ### Code Quality & Auditing
 
@@ -57,10 +64,10 @@ Skills for analyzing code, skills, and system prompts.
 
 | Skill | Description |
 |-------|-------------|
-| **audit-code** | Audits each directory in `./src` for bugs, security vulnerabilities (OWASP Top 10), and performance issues sequentially. Generates one consolidated GitHub issue per directory via `create-issue`. Uses state persistence to resume across responses. |
-| **restructure-code** | Audits each directory in `./src` for opportunities to restructure for better organization (cohesion, coupling, naming, depth, pattern alignment). Generates one issue per directory via `create-issue`. Executes in strict sequential phases with state persistence. |
-| **audit-skill** | Audits Agent Skills `SKILL.md` files against the protocol specification and best practices. Checks 10 categories: schema violations, naming, description quality, structure, progressive disclosure, file references, best practices, calibration, content quality, and optional directories. Produces a structured report with severity levels. |
-| **audit-sys-prompt** | Expert system prompt evaluator. Analyzes, rates, and provides actionable feedback for system prompts against a 7-criteria framework (role clarity, constraints, output format, safety compliance, robustness, tone consistency, harness integration). Returns structured machine-readable JSON output. |
+| **audit-code** | Audits each directory in `./src` for bugs, security vulnerabilities (OWASP Top 10), and performance issues. Generates one consolidated GitHub issue per directory via `create-issue`. |
+| **restructure-code** | Audits each directory in `./src` for opportunities to restructure for better organization (cohesion, coupling, naming, depth, pattern alignment). Generates one issue per directory via `create-issue`. |
+| **audit-skill** | Audits Agent Skills `SKILL.md` files against the protocol specification and best practices. Checks 10 categories: schema violations, naming, description quality, structure, progressive disclosure, file references, best practices, calibration, content quality, and optional directories. |
+| **audit-sys-prompt** | Expert system prompt evaluator. Analyzes, rates, and provides actionable feedback for system prompts against a 7-criteria framework. Returns structured machine-readable JSON output. |
 
 ## Pipeline Architecture
 
@@ -99,6 +106,10 @@ git-tag (create annotated tag, push)
   ↓
 [Optional] release-madz (build & push Docker images)
 ```
+
+## License
+
+BSD 3-Clause
 
 ### Autonomous Issue Processing
 
