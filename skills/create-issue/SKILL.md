@@ -30,6 +30,14 @@ Analyze the user's description and determine whether this is a **fix** or a **fe
 
 **Default to `feat` (→ `feature` label) unless the description is clearly a bug.** If you are even slightly uncertain, it is a feature. There is no third option.
 
+**Capture the category and label as variables:**
+
+```bash
+# Set CATEGORY and LABEL based on the analysis above
+CATEGORY="<fix|feat>"
+LABEL="<bug|feature>"
+```
+
 ### 3. Synthesize Title
 
 Create a concise, conventional-commit-style title:
@@ -38,6 +46,12 @@ Create a concise, conventional-commit-style title:
 - **Feat:** `feat: <short description>` — e.g., `feat: add file upload endpoint`
 
 Keep it under 70 characters. Be specific but terse. No trailing punctuation.
+
+**Capture the title in a variable:**
+
+```bash
+SYNTHESIZED_TITLE="<fix|feat>: <short description>"
+```
 
 ### 4. Synthesize Description
 
@@ -90,6 +104,13 @@ sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH"
 - The **Proposed Solution** (for feats) should be actionable — what the implementation would look like.
 - For fixes, the **Reproduction** steps should be concrete and sequential.
 - For fixes, the **Expected** vs **Actual** behavior should be clearly contrasted.
+
+**Capture the populated template body** — store it in `$FULL_TEMPLATE_BODY` for use in Step 5:
+
+```bash
+# Read the template, strip frontmatter, and store in variable
+FULL_TEMPLATE_BODY=$(sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH")
+```
 
 ### 4.5. Populate Environment Section
 

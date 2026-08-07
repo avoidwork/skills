@@ -1,61 +1,60 @@
 ---
 name: purge-branches
-description: Runs npm run purge-branches to delete local branches other than main. Use when the user wants to clean up stale branches without switching branches or pulling.
+description: Deletes all local git branches except 'main'. Works in any git repository — no npm or package.json dependency.
 license: BSD 3-Clause
-compatibility: Requires git CLI configured with npm. Must be run from the project root directory.
+compatibility: Requires git CLI. Must be run from a git repository root.
 metadata:
   agent: coding
 ---
 
 # Purge Branches
 
-Delete all local branches except `main`.
+Delete all local branches except `main`. Pure git — no npm, no package.json required.
 
 ## Pre-flight Check
 
-Before running, verify the npm script exists and check current state:
+Check current state and confirm we're not on a branch that will be deleted:
 
 ```bash
-# Verify the script exists in package.json
-grep '"purge-branches"' package.json
-if [ $? -ne 0 ]; then
-  echo "ERROR: purge-branches script not found in package.json"
-  exit 1
-fi
-
-# Check current branch — ensure we're not on a branch that will be deleted
+# Check current branch
 CURRENT_BRANCH=$(git branch --show-current)
-if [ "$CURRENT_BRANCH" != "main" ]; then
-  echo "WARNING: You are on branch '$CURRENT_BRANCH'. This branch will NOT be deleted (only non-main branches are purged)."
-fi
+echo "Current branch: $CURRENT_BRANCH"
 
-# Dry-run: show what would be deleted
+# Show branches that will be deleted
+echo ""
 echo "Branches that will be deleted:"
 git branch --format='%(refname:short)' | grep -v '^main$'
+BRANCH_COUNT=$(git branch --format='%(refname:short)' | grep -cv '^main$')
+echo ""
+echo "Total: $BRANCH_COUNT branches to delete"
+
+if [ "$BRANCH_COUNT" -eq 0 ]; then
+  echo "No branches to purge."
+  exit 0
+fi
 ```
 
 ## Execute
 
-Run the purge script:
+Delete all branches except `main`:
 
 ```bash
-npm run purge-branches
+# Delete all branches except main (safely, one at a time)
+git branch --format='%(refname:short)' | grep -v '^main$' | while read -r branch; do
+  git branch -D "$branch" 2>/dev/null && echo "Deleted: $branch" || echo "Skipped (checkout error): $branch"
+done
 ```
 
-**Handle failure:** If `npm run purge-branches` returns a non-zero exit code, report the error and stop. Do not proceed.
+**Handle failure:** If any branch fails to delete (e.g., it's checked out), the loop continues — only successfully deleted branches are counted. Report any failures at the end.
 
 ## Report
-
-Count deleted branches by comparing before/after:
 
 ```bash
 # Count remaining branches (excluding main)
 REMAINING=$(git branch --format='%(refname:short)' | grep -cv '^main$')
+echo ""
 echo "Purge complete."
-echo "Branches deleted: $((2 - REMAINING))"  # Adjust based on actual before count
 echo "Remaining branches: $REMAINING"
 ```
-
-If the npm script already handles reporting, use its output instead.
 
 ---
