@@ -53,22 +53,26 @@ For each issue in the sorted list:
    git worktree add "$WORKTREE_PATH" "$WORKTREE_BRANCH"
    ```
 
-2. **Invoke fix-issue** inside the worktree:
+2. **Change into the worktree:**
    ```bash
    cd "$WORKTREE_PATH"
-   fix-issue "$ISSUE_NUM"
-   EXIT_CODE=$?
-   cd -
    ```
 
-3. **Wait for completion.** Do not proceed to the next issue until the current one is done.
+3. **Invoke fix-issue** as a chain instruction:
+   ```
+   fix-issue <ISSUE_NUMBER>
+   ```
+   This chains through the full `fix-issue` → `create-feature` pipeline inside the worktree.
 
-4. **If fix-issue succeeds:** Log the issue number and PR number (if available).
+4. **Wait for completion.** Do not proceed to the next issue until the current one is done.
 
-5. **If fix-issue fails:** Log the error, skip the issue, and continue with the next. Never abort the queue over a single failure.
+5. **If fix-issue succeeds:** Log the issue number and PR number (if available).
 
-6. **Clean up the worktree** after success or failure:
+6. **If fix-issue fails:** Log the error, skip the issue, and continue with the next. Never abort the queue over a single failure.
+
+7. **Clean up the worktree** after success or failure:
    ```bash
+   cd -
    git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true
    rm -rf "$WORKTREE_PATH"
    ```
