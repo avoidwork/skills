@@ -2,7 +2,7 @@
 name: scan-issues
 description: Scans GitHub for open issues labeled 'approved' (excluding those also labeled 'in progress'), creates a git worktree for each, processes them sequentially via fix-issue, and opens one PR at a time with auto-merge. Runs hourly.
 license: BSD 3-Clause
-compatibility: Requires gh CLI authenticated with the avoidwork/madz repo. Must be run from the project root. Requires git worktree support.
+compatibility: Requires gh CLI authenticated with a GitHub repo. Must be run from a git project root. Requires git worktree support.
 metadata:
   agent: coding
 ---
