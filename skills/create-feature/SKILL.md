@@ -56,12 +56,6 @@ INPUT="<USER_PROVIDED_INPUT>"
 
 ## Step 0: Ensure Clean State
 
-**Create the memory directory if it does not exist:**
-
-```bash
-mkdir -p memory
-```
-
 **Determine the target repository dynamically from the git remote (needed for later gh commands):**
 
 ```bash
@@ -99,7 +93,7 @@ If there are uncommitted changes, report them and stop. Do not proceed with a di
 
 ## Step 0.5: Capture Session ID
 
-Capture a unique session identifier. All memory files are prefixed with this ID so that multiple instances (e.g., subagents) can run in parallel without file collisions.
+Capture a unique session identifier so that multiple instances (e.g., subagents) can run in parallel without file collisions.
 
 ```bash
 # Portable: works in Alpine, minimal images, and standard Linux
@@ -108,7 +102,7 @@ SESSION_ID=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' || e
 echo "SESSION_ID=$SESSION_ID"
 ```
 
-All subsequent memory file paths use the pattern `memory/${SESSION_ID}-<name>`.
+**Where to store temp files:** The agent running this skill decides where to place temp files. Use example names like `${SESSION_ID}-feature-goals.md`, `${SESSION_ID}-feature-prompt.md`, `${SESSION_ID}-audit-results.md`, and `${SESSION_ID}-pr-number.txt`. The agent may place them in `tmp/`, `state/`, or any other directory that fits the project's conventions.
 
 ---
 
@@ -123,7 +117,7 @@ Take the raw goals from the input and expand each into a more detailed, actionab
 - **Dependencies:** Any existing code, configs, or specs that need to change
 - **Risks / Edge Cases:** Potential pitfalls to consider
 
-Write the detailed goals to `memory/${SESSION_ID}-feature-goals.md` as a markdown document. This file serves as the source of truth for all subsequent audits.
+Write the detailed goals to a file named `${SESSION_ID}-feature-goals.md` (use an example name — the agent decides where to place it). This file serves as the source of truth for all subsequent audits.
 
 ---
 
@@ -138,7 +132,7 @@ Using the detailed goals from Step 1, synthesize a multi-paragraph proposal prom
 - Note any architectural decisions or trade-offs
 - Be specific enough that `openspec new change` + artifact generation will produce useful specs
 
-Write the proposal prompt to `memory/${SESSION_ID}-feature-prompt.md`.
+Write the proposal prompt to a file named `${SESSION_ID}-feature-prompt.md` (use an example name — the agent decides where to place it).
 
 ---
 
@@ -147,7 +141,7 @@ Write the proposal prompt to `memory/${SESSION_ID}-feature-prompt.md`.
 Parse the change name from the proposal prompt in Step 2. This is the kebab-case identifier that will be used for the OpenSpec change directory.
 
 ```bash
-CHANGE_NAME=$(grep -oP '(?<=CHANGE_NAME: )\S+' memory/${SESSION_ID}-feature-prompt.md | head -1)
+CHANGE_NAME=$(grep -oP '(?<=CHANGE_NAME: )\S+' "${SESSION_ID}-feature-prompt.md" | head -1)
 if [ -z "$CHANGE_NAME" ]; then
   CHANGE_NAME=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 fi
@@ -222,7 +216,7 @@ If any expected file is missing, stop and report the error.
 
 ## Step 5: Audit Specs Against Goals (Up to 3 Iterations)
 
-Read the detailed goals from `memory/${SESSION_ID}-feature-goals.md` and the generated spec documents (proposal.md, design.md, tasks.md, and any spec deltas).
+Read the detailed goals from the file named `${SESSION_ID}-feature-goals.md` (use an example name — the agent decides where to place it) and the generated spec documents (proposal.md, design.md, tasks.md, and any spec deltas).
 
 Perform a thorough audit:
 
@@ -231,7 +225,7 @@ Perform a thorough audit:
 3. **Completeness audit:** Are there missing requirements, edge cases, or acceptance criteria not captured?
 4. **Consistency audit:** Do the tasks in tasks.md map to the requirements in the specs?
 
-Write audit findings to `memory/${SESSION_ID}-audit-results.md`.
+Write audit findings to a file named `${SESSION_ID}-audit-results.md` (use an example name — the agent decides where to place it).
 
 **If errors are found:**
 - Fix the spec documents to address each finding
@@ -271,7 +265,7 @@ if [ -z "$PR_NUMBER" ]; then
   echo "ERROR: Could not extract PR_NUMBER from commit-push output. Stopping."
   exit 1
 fi
-echo "$PR_NUMBER" > memory/${SESSION_ID}-pr-number.txt
+echo "$PR_NUMBER" > "${SESSION_ID}-pr-number.txt"
 ```
 
 If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
@@ -345,14 +339,14 @@ If the application fails to start, fix the issue before proceeding. Do not skip 
 
 ## Step 9: Audit Results Against Specs & Goals (Up to 3 Iterations)
 
-Read the original goals from `memory/${SESSION_ID}-feature-goals.md` and the spec documents. Audit the implemented results:
+Read the original goals from the file named `${SESSION_ID}-feature-goals.md` (use an example name — the agent decides where to place it) and the spec documents. Audit the implemented results:
 
 1. **Goal fulfillment:** Does the implementation satisfy every detailed goal?
 2. **Spec compliance:** Does the code match the requirements in the spec documents?
 3. **Task completion:** Were all tasks in tasks.md actually implemented correctly?
 4. **Quality check:** Are there any obvious issues, missing edge cases, or inconsistencies?
 
-Write audit findings to `memory/${SESSION_ID}-audit-results.md` (overwrite previous results).
+Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an example name — the agent decides where to place it) (overwrite previous results).
 
 **If errors are found:**
 - Fix the code to address each finding
@@ -430,8 +424,8 @@ After `update-pr` completes, verify the PR was updated correctly by checking the
 Post the final audit results from Step 9 as a comment on the PR:
 
 ```bash
-PR_NUMBER=$(cat memory/${SESSION_ID}-pr-number.txt)
-gh pr comment "$PR_NUMBER" --body "$(cat memory/${SESSION_ID}-audit-results.md)" --repo "$GH_REPO"
+PR_NUMBER=$(cat "${SESSION_ID}-pr-number.txt")
+gh pr comment "$PR_NUMBER" --body "$(cat "${SESSION_ID}-audit-results.md")" --repo "$GH_REPO"
 ```
 
 ---
@@ -458,12 +452,12 @@ Coverage: maintained
 Remove the intermediate memory files — they served their purpose and won't be needed again:
 
 ```bash
-rm -f memory/${SESSION_ID}-feature-goals.md memory/${SESSION_ID}-feature-prompt.md memory/${SESSION_ID}-audit-results.md memory/${SESSION_ID}-pr-number.txt
+rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt"
 ```
 
 Verify cleanup:
 ```bash
-ls memory/${SESSION_ID}-feature-*.md memory/${SESSION_ID}-audit-results.md memory/${SESSION_ID}-pr-number.txt 2>&1
+ls "${SESSION_ID}-feature-*.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" 2>&1
 ```
 
 If any files remain, report them and remove manually.

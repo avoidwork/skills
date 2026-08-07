@@ -20,11 +20,11 @@ Use a state file to persist progress across responses. The state file is cleaned
 
 ### State File Location
 
-The state file path is provided in the chain context (the text after `/audit-code`). If no path is provided, default to `memory/audit-state.md`.
+The state file path is provided in the chain context (the text after `/audit-code`). If no path is provided, default to an example name like `audit-state.md` — the agent decides where to place it.
 
 Store the path in a variable:
 ```bash
-STATE_FILE="${STATE_FILE_PATH:-memory/audit-state.md}"
+STATE_FILE="${STATE_FILE_PATH:-audit-state.md}"
 ```
 
 ### State File Format
