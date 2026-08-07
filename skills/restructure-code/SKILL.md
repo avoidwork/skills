@@ -20,7 +20,12 @@ Use a state file to persist progress across responses. The state file is cleaned
 
 ### State File Location
 
-`memory/restructure-state.md`
+An example name like `restructure-state.md` — the agent decides where to place it.
+
+Store the path in a variable:
+```bash
+STATE_FILE="${STATE_FILE_PATH:-restructure-state.md}"
+```
 
 ### State File Format
 
@@ -55,7 +60,7 @@ Use a state file to persist progress across responses. The state file is cleaned
 
 ### Phase 0: Discovery
 
-1. **Clean state.** Delete any existing state file: `rm -f memory/restructure-state.md`
+1. **Clean state.** Delete any existing state file: `rm -f "$STATE_FILE"`
 2. **Enumerate directories.** List all immediate subdirectories of `./src`:
    ```bash
    find ./src -mindepth 1 -maxdepth 1 -type d | sort
@@ -65,23 +70,23 @@ Use a state file to persist progress across responses. The state file is cleaned
 5. Build the phase queue: `[./src, subdir1, subdir2, ...]` in alphabetical order.
 6. **Save the phase queue** to the state file:
    ```bash
-   cat > memory/restructure-state.md << EOF
+   cat > "$STATE_FILE" << EOF
    # Restructure State
 
    ## Phase Queue
    - [x] ./src
    EOF
    find ./src -mindepth 1 -maxdepth 1 -type d | sort | while read dir; do
-     echo "- [ ] $dir" >> memory/restructure-state.md
+     echo "- [ ] $dir" >> "$STATE_FILE"
    done
-   echo "" >> memory/restructure-state.md
-   echo "## Current Phase" >> memory/restructure-state.md
-   echo "./src" >> memory/restructure-state.md
-   echo "" >> memory/restructure-state.md
-   echo "## Completed" >> memory/restructure-state.md
-   echo "- ./src" >> memory/restructure-state.md
-   echo "" >> memory/restructure-state.md
-   echo "## Findings" >> memory/restructure-state.md
+   echo "" >> "$STATE_FILE"
+   echo "## Current Phase" >> "$STATE_FILE"
+   echo "./src" >> "$STATE_FILE"
+   echo "" >> "$STATE_FILE"
+   echo "## Completed" >> "$STATE_FILE"
+   echo "- ./src" >> "$STATE_FILE"
+   echo "" >> "$STATE_FILE"
+   echo "## Findings" >> "$STATE_FILE"
    ```
 7. **Proceed immediately** to Phase 1 (the first directory in the queue). Do not wait for user confirmation.
 
@@ -91,7 +96,7 @@ Use a state file to persist progress across responses. The state file is cleaned
 
 Before beginning a phase, check for existing state:
 
-1. Read `memory/restructure-state.md`.
+1. Read An example name like `restructure-state.md` — the agent decides where to place it..
 2. If the file exists and the current phase matches the directory being processed, continue.
 3. If the file exists and a different phase is listed as current, the audit was interrupted — resume from the saved state.
 4. If the file does not exist, begin fresh.
@@ -249,22 +254,22 @@ After completing the phase (issue created or no issues found), update the state 
     ```bash
     # Use | as sed delimiter instead of / to handle directory paths safely
     ESCAPED_DIR=$(echo "$CURRENT_DIR" | sed 's/[|/]/\\&/g')
-    sed -i "s|- \[ \] $ESCAPED_DIR|- [x] $ESCAPED_DIR|" memory/restructure-state.md
+    sed -i "s|- \[ \] $ESCAPED_DIR|- [x] $ESCAPED_DIR|" "$STATE_FILE"
    ```
 2. **Append to Completed section:**
    ```bash
-   sed -i '/^## Completed$/a - '"$CURRENT_DIR" memory/restructure-state.md
+   sed -i '/^## Completed$/a - '"$CURRENT_DIR" "$STATE_FILE"
    ```
 3. **Update Current Phase** to the next directory in the queue, or clear it if this was the last:
    ```bash
-   NEXT_DIR=$(grep -A100 "## Phase Queue" memory/restructure-state.md | grep "\- \[ \]" | head -1 | sed 's/- \[ \] //')
+   NEXT_DIR=$(grep -A100 "## Phase Queue" "$STATE_FILE" | grep "\- \[ \]" | head -1 | sed 's/- \[ \] //')
    if [ -n "$NEXT_DIR" ]; then
-     sed -i "s/^## Current Phase$/## Current Phase\n$NEXT_DIR/" memory/restructure-state.md
+     sed -i "s/^## Current Phase$/## Current Phase\n$NEXT_DIR/" "$STATE_FILE"
    else
-     sed -i '/^## Current Phase$/d' memory/restructure-state.md
+     sed -i '/^## Current Phase$/d' "$STATE_FILE"
    fi
    ```
-4. **Save the updated state** to `memory/restructure-state.md` (the sed commands above modify in place).
+4. **Save the updated state** to `$STATE_FILE` (the sed commands above modify in place).
 
 Example state after completing `./src`:
 
@@ -291,7 +296,7 @@ Example state after completing `./src`:
 
 After updating state, check if all phases are complete:
 
-- **If all directories are marked `[x]`:** Delete the state file (`rm -f memory/restructure-state.md`) and report "All phases complete."
+- **If all directories are marked `[x]`:** Delete the state file (`rm -f "$STATE_FILE"`) and report "All phases complete."
 - **If more directories remain:** Automatically proceed to the next phase in the queue.
 
 #### Step E3: Phase Complete
