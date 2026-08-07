@@ -36,6 +36,15 @@ fi
 
 The user provides a list of goals/features in any format (natural language, JSON, markdown list, etc.). Parse and normalize them into a clean array of goal strings.
 
+**Capture the raw input** — store it in a variable for later use:
+
+```bash
+# The agent must capture whatever the user provided as input.
+# If invoked via chain instruction, the input is the text after "create-feature".
+# Store it for the BRANCH_TYPE extraction block below.
+INPUT="<USER_PROVIDED_INPUT>"
+```
+
 **Example input:**
 > Add a new tool that can summarize web pages, and improve the TUI memory panel to show retention stats.
 
@@ -252,10 +261,12 @@ The `commit-push` skill will:
 - Create a PR using the template from the scanned project rules §5.4
 - Output `PR_NUMBER=<number>` (whether newly created or pre-existing)
 
-After `/commit-push` completes, extract the PR number from its output and save it:
+After `/commit-push` completes, extract the PR number from its output text (the skill outputs `PR_NUMBER=<number>`):
 
 ```bash
-PR_NUMBER=$(echo "$COMMIT_PUSH_OUTPUT" | grep -oP 'PR_NUMBER=\K\d+' | head -1)
+# The agent must capture the output from the commit-push chain instruction
+# and extract the PR_NUMBER from it.
+PR_NUMBER=$(echo "$CHAIN_OUTPUT" | grep -oP 'PR_NUMBER=\K\d+' | head -1)
 if [ -z "$PR_NUMBER" ]; then
   echo "ERROR: Could not extract PR_NUMBER from commit-push output. Stopping."
   exit 1
@@ -420,7 +431,7 @@ Post the final audit results from Step 9 as a comment on the PR:
 
 ```bash
 PR_NUMBER=$(cat memory/${SESSION_ID}-pr-number.txt)
-gh pr comment "$PR_NUMBER" --body "$(cat memory/${SESSION_ID}-audit-results.md)"
+gh pr comment "$PR_NUMBER" --body "$(cat memory/${SESSION_ID}-audit-results.md)" --repo "$GH_REPO"
 ```
 
 ---

@@ -70,23 +70,27 @@ Update an existing pull request's title and description following project conven
    You must collect the complete picture — every commit and every file change between the branch and its target. Do not rely on the most recent commit alone.
 
    ```bash
-   # Get all commits on the branch (oldest first)
-   git log --reverse <base>..<head> --oneline --no-decorate
-
-   # Get the full diff stats (files changed, lines added/removed)
-   git diff <base>..<head> --stat
-
-   # Get the full diff (for detailed change analysis) — NOTE: On large branches, this may produce very large output.
-   # If output exceeds ~50,000 characters, use --stat only and note "Large delta — full diff truncated."
-   git diff <base>..<head>
+   # Get base and head refs from the PR
+   BASE_REF=$(gh pr view <PR_NUMBER> --json baseRefName --jq '.baseRefName' --repo "$GH_REPO")
+   HEAD_REF=$(gh pr view <PR_NUMBER> --json headRefName --jq '.headRefName' --repo "$GH_REPO")
    ```
-
-   Replace `<base>` with the PR's base branch (usually `main`) and `<head>` with the branch's HEAD commit. Use `gh pr view <number> --json baseRefName,headRefName` to get these values if unsure.
 
    From this data, identify:
    - **All files changed** and what kind of change each represents
    - **All commits** and their messages (these are your primary signal for the title)
    - **The nature of changes**: code, docs, tests, config, etc.
+
+   ```bash
+   # Get all commits on the branch (oldest first)
+   git log --reverse "${BASE_REF}..${HEAD_REF}" --oneline --no-decorate
+
+   # Get the full diff stats (files changed, lines added/removed)
+   git diff "${BASE_REF}..${HEAD_REF}" --stat
+
+   # Get the full diff (for detailed change analysis) — NOTE: On large branches, this may produce very large output.
+   # If output exceeds ~50,000 characters, use --stat only and note "Large delta — full diff truncated."
+   git diff "${BASE_REF}..${HEAD_REF}"
+   ```
 
 5. **Draft the title**
 
@@ -130,9 +134,9 @@ Update an existing pull request's title and description following project conven
     **Never use `gh pr edit` — it fails in this repo.** Use the GitHub API instead. Continue using the `$GH_REPO` variable extracted in Step 1:
 
     ```bash
-    gh api "repos/$GH_REPO/pulls/<PR_NUMBER>" \
-      -f title="<DRAFTED_TITLE>" \
-      -f body="<DRAFTED_BODY>"
+    gh api "repos/$GH_REPO/pulls/$PR_NUMBER" \
+      -f title="$DRAFTED_TITLE" \
+      -f body="$DRAFTED_BODY"
     ```
 
     **Handle API errors:** If the API call returns a non-200 status, report the error and stop. Common errors:

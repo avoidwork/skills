@@ -48,10 +48,11 @@ fi
 ```
 
 ```bash
-gh issue view <ID> --json title,body,labels,state,url --repo "$REPO"
+ISSUE_DETAILS=$(gh issue view "$ISSUE_NUM" --json title,body,labels,state,url --repo "$REPO")
+echo "$ISSUE_DETAILS"
 ```
 
-**Check if issue is closed:** After fetching, inspect the `state` field. If `state` is `"CLOSED"`, stop and report: "Issue #<ID> is closed. No action taken."
+**Check if issue is closed:** After fetching, inspect the `state` field. If `state` is `"CLOSED"`, stop and report: "Issue #$ISSUE_NUM is closed. No action taken."
 
 If the issue does not exist or is inaccessible, report the error and stop.
 
@@ -82,7 +83,7 @@ No action taken.
 Before any work begins, mark the issue as being worked on:
 
 ```bash
-gh issue edit <ID> --add-label "in progress" --repo "$REPO"
+gh issue edit "$ISSUE_NUM" --add-label "in progress" --repo "$REPO"
 ```
 
 This ensures the issue won't be picked up again by `scan-issues` and clearly marks it as being worked on. (Note: `--add-label` is idempotent — adding an already-present label is a no-op.)

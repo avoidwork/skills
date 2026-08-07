@@ -36,6 +36,17 @@ git checkout -b "detached-fix-$(date +%s)"
 
 ## 3. Create & Checkout a Branch
 
+First, determine the repo dynamically (needed for later PR creation):
+
+```bash
+GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+if echo "$GIT_REMOTE" | grep -q '^git@'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+fi
+```
+
 Check if already on a feature branch. If the current branch matches `feat/*`, `fix/*`, `docs/*`, or `chore/*`, skip branch creation and proceed to Step 4:
 
 ```bash
@@ -67,10 +78,10 @@ fi
 4. Prepend the appropriate prefix based on the commit type (inferred in Step 1 from the scanned rules, or default to `feat`).
 
 ```bash
-# Example synthesis — adapt to your actual rules:
-# If commit format uses "feat:", prefix is "feat"; if "fix:", prefix is "fix", etc.
-COMMIT_TYPE="feat"   # Infer from the rules scanned in Step 1, or default to feat.
-SLUG="$MODULE_NAME"  # Synthesized from CHANGED_FILES per the strategy above.
+# Infer COMMIT_TYPE from the rules scanned in Step 1, or default to feat.
+COMMIT_TYPE="feat"
+# Set SLUG from the strategy above (e.g., from CHANGED_FILES analysis).
+SLUG="<SYNTHESIZED_SLUG>"
 git checkout -b "${COMMIT_TYPE}/${SLUG}"
 ```
 
@@ -200,42 +211,42 @@ done
 - Replace inline placeholders (e.g., `<fill-in>`, `<!-- ... -->`, `[ ]` checkboxes).
 - If the template has no fillable placeholders, append the content as a "Details" section at the end.
 
-Construct the body from available context:
+**Write the filled-in body to a temp file** — do NOT pass the template file path as the body:
 
-```markdown
-<TEMPLATE_FILE_CONTENT>
+```bash
+BODY_FILE=$(mktemp)
 
----
-
-### Details
-
-**Commit(s):** \`<commit subject>\`
-
-**Changed files:** \`<comma-separated changed filenames, shortened>\`
-
-**Rule 5.4:** PR template at \`<TEMPLATE_FILE>\` was used. All sections filled.
+# Read the template, replace placeholders with actual content, write to temp file
+# The agent must populate every section from the commit/file context.
+sed -e 's/<commit subject>/'"$(git log -1 --oneline)"'/g' \
+    -e 's/<comma-separated changed filenames, shortened>/'"$(git diff --name-only HEAD~1 | head -5 | tr '\n' ', ' | sed 's/,$//')"'/g' \
+    "$TEMPLATE_FILE" > "$BODY_FILE"
 ```
 
-**If no template file exists**, generate a minimal body from the commit and file context:
+**If no template file exists**, generate a minimal body and write it to a temp file:
 
-```markdown
-**Commit:** \`<commit message>\`
+```bash
+BODY_FILE=$(mktemp)
+cat > "$BODY_FILE" << BODYEOF
+**Commit:** \`$(git log -1 --oneline)\`
 
-**Changed files:** \`<comma-separated changed filenames>\`
+**Changed files:** \`$(git diff --name-only HEAD~1 | tr '\n' ', ' | sed 's/,$//')\`
+BODYEOF
+```
 
 ### 8.3 Create the PR
 
-**If `TEMPLATE_FILE` was found in Step 8.2:** Use it as the PR body (Rule 5.4 compliance). Fill in every section from the template — do not leave any blank. If a section is not applicable, write `N/A`.
+**If `TEMPLATE_FILE` was found in Step 8.2:** Use the filled-in body from the temp file (Rule 5.4 compliance). Fill in every section from the template — do not leave any blank. If a section is not applicable, write `N/A`.
 
 ```bash
-# Fill in the template and pass it as the PR body
-# Option A: gh pr create accepts a file path via --body-file
+# Use the populated body file, not the raw template
+# Include --repo for worktree compatibility
 gh pr create \
   --title "<synthesized-title>" \
-  --body-file "$TEMPLATE_FILE" \
+  --body-file "$BODY_FILE" \
   --base main \
   --assignee avoidwork \
-  --label "<inferred-label>"
+  --repo "$GH_REPO"
 ```
 
 If `gh pr create` does not support `--body-file` in your version, use stdin:
@@ -246,27 +257,23 @@ gh pr create \
   --body "@-" \
   --base main \
   --assignee avoidwork \
-  --label "<inferred-label>" < "$TEMPLATE_FILE"
+  --repo "$GH_REPO" < "$BODY_FILE"
 ```
 
-**If no template file exists:** Generate a minimal body and pass it directly:
+**If no template file exists:** Use the minimal body from the temp file:
 
 ```bash
-MINIMAL_BODY="$(printf "%s" "* **Commit:** \`<commit message>\`
-
-* **Changed files:** \`<comma-separated changed filenames>\`")
-
 gh pr create \
   --title "<synthesized-title>" \
-  --body "$MINIMAL_BODY" \
+  --body-file "$BODY_FILE" \
   --base main \
   --assignee avoidwork \
-  --label "<inferred-label>"
+  --repo "$GH_REPO"
 ```
 
 **Label selection:** Infer from the commit type determined in Step 5.1:
-- If the subject starts with or implies a bug fix → `--label "bug"`
-- Otherwise → `--label "feature"`
+- If the subject starts with or implies a bug fix → add `--label "bug"`
+- Otherwise → add `--label "feature"`
 - If multiple types are present, use `"bug"` only if any commit is a fix; otherwise `"feature"`
 
 **After creating the PR**, extract and output the number:
