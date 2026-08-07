@@ -15,9 +15,10 @@ An autonomous issue scanner and fixer. Finds approved, unassigned issues and pro
 
 ### 1. Determine Repository
 
-Extract the repo from the git remote — never hardcode:
+Capture the project root and extract the repo from the git remote — never hardcode paths:
 
 ```bash
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
 GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
 if [ -z "$GIT_REMOTE" ]; then
   echo "ERROR: No git remote 'origin' found. Can't determine repository."
@@ -111,7 +112,7 @@ For each issue in the sorted list:
 
 8. **Change back to the project root** before cleanup:
    ```bash
-   cd /home/jason/Projects/madz
+   cd "$PROJECT_ROOT"
    ```
 
 9. **Clean up the worktree** after success or failure:
