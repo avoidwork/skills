@@ -146,7 +146,7 @@ This installs dependencies (ensuring lockfile is current), runs `build` if the p
 
 Delegating version release to `commit-push`, which will:
 1. Scan for AGENTS.md to read project rules
-2. Stage all changes
+2. Stage **all** files (`git add -A` — nothing left behind)
 3. Commit with a conventional commit message (e.g., `chore: release v1.3.8`)
 4. Push to the remote — **asks user for explicit approval first** (AGENTS.md §1.3)
 5. Open a PR targeting `main`
