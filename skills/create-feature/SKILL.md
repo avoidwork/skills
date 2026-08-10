@@ -272,16 +272,25 @@ If `/commit-push` fails, report the error and stop. Do not attempt to recover wi
 
 ---
 
-## Step 7: Apply Tasks (via /opsx-apply)
+## Step 7: Apply Tasks (via openspec-apply-change)
 
-Execute tasks using this procedure (simplified for the automated pipeline context):
+Invoke the `openspec-apply-change` skill to implement all tasks from `tasks.md`:
 
-1. Read `openspec/changes/$CHANGE_NAME/tasks.md` for all unchecked tasks.
-2. Create a todo queue mapping each unchecked task to a todo item.
-3. Execute tasks sequentially in creation order.
-4. When a task completes, mark it `[x]` in `tasks.md`.
-5. If a task fails, report the error and stop. Do not continue with incomplete work.
-6. Continue until all tasks are complete or the queue is exhausted.
+```
+openspec-apply-change "$CHANGE_NAME"
+```
+
+The `openspec-apply-change` skill will:
+- Read the tasks from `tasks.md`
+- Implement each task sequentially
+- Mark tasks complete as `[x]` in `tasks.md`
+- Report progress as "N/M tasks complete"
+
+**Wait for the skill to complete.** Do not proceed to Step 7.5 until all tasks are marked complete.
+
+If the skill reports that tasks are blocked (missing artifacts), report the error and stop. Do not proceed with incomplete work.
+
+**If interrupted (timeout, context limit):** Re-invoke `openspec-apply-change "$CHANGE_NAME"` to resume from where it left off. The skill checks task status and only implements remaining tasks.
 
 After completion, verify:
 - All tasks in `tasks.md` are marked `[x]`
@@ -303,7 +312,7 @@ If any verification fails, fix the issues and re-verify.
 
 ## Step 7.5: Commit & Push Implementation Code (via commit-push)
 
-**Purpose:** Push the code produced by `/opsx-apply` to the open PR.
+**Purpose:** Push the code produced by `openspec-apply-change` to the open PR.
 
 Invoke `commit-push` to stage, commit, push, and update the existing PR:
 
