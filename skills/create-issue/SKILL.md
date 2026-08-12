@@ -253,7 +253,7 @@ rm -f "$BODY_FILE"
 
 1. **Build the audit section** using the format from step 6.
 
-2. **Append to the existing issue body** using `gh issue edit`. Read the current body, append the audit section, and write it back:
+2. **Append to the existing issue body** using `gh issue edit`. Read the current body, append the audit section, and write the combined body back:
 
 ```bash
 # Read current body
@@ -261,19 +261,17 @@ CURRENT_BODY=$(gh issue view <ISSUE_NUMBER> --json body --jq '.body')
 
 # Build the audit section
 AUDIT_SECTION="
-## Audit Findings (for Issue #<ISSUE_NUMBER>)
+## Audit Findings (for Issue #${ISSUE_NUMBER})
 
 - **<file-path>** — <brief, actionable observation>
 - <more findings...>
 "
 
-# Append and update — write to temp file to avoid stdin escaping issues
+# Append and update — write CURRENT_BODY + AUDIT_SECTION to temp file
 AUDIT_FILE=$(mktemp)
 cat > "$AUDIT_FILE" << AUDITEOF
-## Audit Findings (for Issue #${ISSUE_NUMBER})
-
-- **<file-path>** — <brief, actionable observation>
-- <more findings...>
+${CURRENT_BODY}
+${AUDIT_SECTION}
 AUDITEOF
 
 gh issue edit "$ISSUE_NUMBER" --body-file "$AUDIT_FILE" $GH_REPO_FLAG
