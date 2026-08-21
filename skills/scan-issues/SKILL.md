@@ -121,6 +121,8 @@ For each issue in the sorted list:
    rm -rf "$WORKTREE_PATH"
    ```
 
+**After cleaning up the worktree, continue to the next issue in the queue.** Do not stop or wait for further input — the pipeline proceeds automatically.
+
 **Rate limiting:** If GitHub API returns 403 rate limit, wait 60 seconds and retry the current issue once.
 
 **Timeout handling:** Each fix-issue run can take 30-60 minutes (via create-feature). If a run exceeds 60 minutes, report a timeout warning but do not abort — the issue may still be processing.

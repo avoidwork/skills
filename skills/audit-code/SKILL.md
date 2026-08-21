@@ -181,6 +181,8 @@ For each directory in the queue:
    ```
    If the issue number cannot be extracted, note it but continue.
 
+   **After creating the issue (or failing to), continue to Step 6.** Do not stop or wait for further input — the pipeline proceeds automatically.
+
 6. **Update Issue Body.** Append a structured audit table to the issue:
    ```bash
    AUDIT_TABLE="| File | Type | Severity | Summary |\n|------|------|----------|---------|\n"

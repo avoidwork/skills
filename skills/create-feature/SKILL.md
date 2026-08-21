@@ -270,6 +270,8 @@ echo "$PR_NUMBER" > "${SESSION_ID}-pr-number.txt"
 
 If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
+**After extracting the PR number, continue to Step 7.** Do not stop or wait for further input — the pipeline proceeds automatically.
+
 ---
 
 ## Step 7: Apply Tasks (via openspec-apply-change)
@@ -294,6 +296,8 @@ If the skill reports that tasks are blocked (missing artifacts), report the erro
 
 After completion, verify:
 - All tasks in `tasks.md` are marked `[x]`
+
+**After verification, continue to Step 7.5.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
 **Check which npm scripts are available before running them** — not all projects define the same scripts:
 
@@ -327,6 +331,8 @@ This will:
 - Update the existing PR (created in Step 6) if `commit-push` detects a pre-existing PR
 
 If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
+
+**After `/commit-push` completes, continue to Step 8.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
 ---
 
@@ -406,6 +412,8 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
     If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
+**After the archive and push complete, continue to Step 11.** Do not stop or wait for further input — the pipeline proceeds automatically.
+
 ---
 
 ## Step 11: Update PR Title & Description (via update-pr)
@@ -425,6 +433,8 @@ The `update-pr` skill will:
 - Update the PR using `gh api`
 
 After `update-pr` completes, verify the PR was updated correctly by checking the PR on GitHub.
+
+**After verification, continue to Step 12.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
 ---
 
