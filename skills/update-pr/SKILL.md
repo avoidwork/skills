@@ -166,3 +166,9 @@ gh api "repos/$GH_REPO/pulls/<PR_NUMBER>" \
 - Use `gh api`, never `gh pr edit`
 - Keep titles under 72 characters (Conventional Commits standard)
 - If the PR doesn't exist or the user can't identify it, ask for clarification
+
+## Gotchas
+
+- **Never use `gh pr edit`.** It fails in this repo. Always use `gh api` to update the PR.
+- **Coverage is a claim, not a verification.** The skill instructs to "confirm 100% line coverage maintained" but does not actually run tests. If code changes were made, run `npm run coverage` and check the output before making the claim.
+- **Title priority is strict.** When multiple commit types exist, use the highest-priority type: fix > feat > docs > test > refactor > chore.

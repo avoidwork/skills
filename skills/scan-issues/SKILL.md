@@ -165,4 +165,43 @@ Failed: 1
 
 This skill is designed to run hourly. When triggered via cron, execute the full workflow above without requiring user input.
 
+## Examples
+
+```
+User: scan-issues
+
+Agent: Determining repository... avoidwork/madz
+Scanning for approved issues...
+Found 3 approved, unassigned issues.
+
+Processing issue #42 — "Crash on empty input"...
+  Created worktree at .worktrees/issue-42
+  Invoking fix-issue...
+  PR created: #101
+  Auto-merge: ENABLED
+  Worktree cleaned up.
+
+Processing issue #57 — "Missing error boundary"...
+  Created worktree at .worktrees/issue-57
+  Invoking fix-issue...
+  PR created: #102
+  Auto-merge: ENABLED
+  Worktree cleaned up.
+
+Processing issue #89 — "Auth timeout race"...
+  Created worktree at .worktrees/issue-89
+  Invoking fix-issue...
+  fix-issue failed: gh auth not configured
+  Worktree cleaned up.
+
+Scan complete.
+✅ Fixed: #42 — "Crash on empty input" (PR #101, auto-merged)
+✅ Fixed: #57 — "Missing error boundary" (PR #102, auto-merged)
+❌ Skipped: #89 — "Auth timeout race" (fix-issue failed)
+
+Total scanned: 3
+Success: 2
+Failed: 1
+```
+
 ---

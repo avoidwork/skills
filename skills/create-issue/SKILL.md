@@ -425,6 +425,13 @@ Audit: <brief note on what was found — e.g., "root cause identified in callHan
 - **GitHub API error:** Report the specific error message and stop.
 - **Audit yields nothing:** If the codebase search returns no relevant results, note "No relevant code paths found — issue may be environment-specific or in external dependencies." and still report the issue creation.
 
+## Gotchas
+
+- **Issue creation is the hard stop.** The issue must exist on GitHub before any codebase audit. Never search the codebase before creating the issue.
+- **`#` characters in content are link triggers.** GitHub interprets `#` as a link trigger in certain contexts. Omit `#` in inline content (e.g., `line 42` not `line #42`), but preserve valid issue references like `resolves #42`.
+- **Label discipline is strict.** Only `bug` and `feature` labels are valid. Never use `enhancement`, `improvement`, `refactor`, `docs`, or any other label.
+- **Environment section must be populated.** If the template has an Environment section, always fill it with live machine details — never leave placeholders.
+
 ## Example
 
 ```

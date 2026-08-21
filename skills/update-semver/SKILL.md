@@ -188,4 +188,38 @@ Changelog: updated
 The world gets a new version.
 ```
 
+## Examples
+
+```
+User: update-semver
+
+Agent: Creating release branch: chore/update-semver-2026-08-15T10-30-00Z
+Current version: 1.34.0
+Last tag: 1.34.0
+Delta: 12 commits
+
+Bump: minor (3 feat: commits found)
+Version: 1.34.0 → 1.35.0
+
+Updated package.json to 1.35.0
+npm install: success
+Build: success
+Changelog: updated
+
+commit-push: PR #456 created
+Auto-merge: ENABLED (squash)
+
+Version 1.35.0 is live.
+
+Branch: chore/update-semver-2026-08-15T10-30-00Z
+PR: https://github.com/avoidwork/madz/pull/456
+Bump: minor (3 commits analyzed)
+From: 1.34.0
+Changelog: updated
+
+The world gets a new version.
+```
+
+## Gotchas
+
 ---
