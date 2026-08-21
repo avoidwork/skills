@@ -184,6 +184,8 @@ fi
 
 **If create-issue fails:** Log the error, skip Step D2 (body update), and proceed to Step E. Do not abort the phase.
 
+**After creating the issue (or failing to), continue to Step D2.** Do not stop or wait for further input — the pipeline proceeds automatically.
+
 ##### Step D2: Replace Issue Body
 
 Once the issue is created, replace the dummy body with the full restructuring analysis.

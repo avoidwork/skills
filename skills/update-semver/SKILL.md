@@ -155,6 +155,8 @@ Delegating version release to `commit-push`, which will:
 commit-push
 ```
 
+**After `commit-push` completes, continue to Step 9.** Do not stop or wait for further input — the pipeline proceeds automatically.
+
 ## Step 9: Enable Auto-Merge
 
 After the PR is created, enable auto-merge on it with **squash** merge. Extract the PR number from the `commit-push` output (look for a line like `PR: #123`), then enable auto-merge:

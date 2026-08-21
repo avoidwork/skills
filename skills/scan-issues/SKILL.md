@@ -38,10 +38,10 @@ fi
 ### 2. Scan for Issues
 
 ```bash
-gh issue list --state open --label approved --json number,title,url,labels --repo "$REPO"
+gh issue list --state open --label approved --search "-label:\"in progress\"" --json number,title,url,labels --repo "$REPO"
 ```
 
-This fetches all open issues that have the `approved` label. **Note:** The `in progress` label check is handled by `fix-issue` in its Step 3, so we don't filter here — let each issue's own validation decide.
+This pushes the filtering to the GitHub API — only issues with `approved` but **not** `in progress` are returned. No client-side `jq` filtering needed.
 
 If no issues match, report `No approved, unassigned issues found.` and exit cleanly.
 
@@ -120,6 +120,8 @@ For each issue in the sorted list:
    git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true
    rm -rf "$WORKTREE_PATH"
    ```
+
+**After cleaning up the worktree, continue to the next issue in the queue.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
 **Rate limiting:** If GitHub API returns 403 rate limit, wait 60 seconds and retry the current issue once.
 
