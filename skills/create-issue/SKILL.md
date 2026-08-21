@@ -38,6 +38,24 @@ CATEGORY="<fix|feat>"
 LABEL="<bug|feature>"
 ```
 
+### 2.5. Scope Judgment — Check for bundling
+
+**Before synthesizing the title, check whether the user's description bundles multiple independent capabilities into a single issue.** If it does, recommend splitting before implementation.
+
+**Judgment criteria — recommend splitting if any of these apply:**
+
+- **Multiple distinct tools/capabilities** — e.g., "add clipboard, browser automation, and desktop automation" (3 separate tools)
+- **Multiple API integrations** — e.g., "add Google Docs, Sheets, Drive, Word, Excel, OneDrive" (6 separate APIs)
+- **Multiple capability areas in one tool** — e.g., "add copywriting, SEO, social media, translation, and text extraction" (5+ capability areas)
+- **Clear separation of concerns** — e.g., clipboard (simple, cross-platform) vs browser automation (heavy, platform-specific)
+
+**Action:**
+
+- **If the issue is narrow** (one tool, one API, one capability area): proceed to step 3.
+- **If the issue is broad** (bundles 2+ distinct capabilities): proceed to step 3 but **append a "Split Recommendation"** section to the synthesized body (see step 4.6). In the final report, note: `Split recommended: <reason>`.
+
+**Do NOT refuse to create the issue.** Create it as requested, but flag the bundling so the implementer can split it during the fix phase.
+
 ### 3. Synthesize Title
 
 Create a concise, conventional-commit-style title:
@@ -105,6 +123,40 @@ sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH"
 - For fixes, the **Reproduction** steps should be concrete and sequential.
 - For fixes, the **Expected** vs **Actual** behavior should be clearly contrasted.
 
+**For feat issues, append these sections after the Proposed Solution (before Alternatives Considered):**
+
+- **Dependencies** — Name the npm packages (or system dependencies) the implementation will use, with version ranges and a brief justification. If the user didn't specify, research the most common/active package for the capability. Format:
+  ```markdown
+  ## Dependencies
+
+  - **<Package name>** (v<x.y.z>+ — <brief justification, e.g., "actively maintained, 2M+ weekly downloads">)
+  - **System dependency** — <if applicable, e.g., "Python 3.10+ with pip">
+  ```
+
+- **Testing Strategy** — One paragraph describing how the feature will be tested. Include unit tests, integration tests, and edge cases. Format:
+  ```markdown
+  ## Testing Strategy
+
+  - **Unit tests**: <what to test, e.g., "Verify Zod schema validation for all inputs">
+  - **Integration test**: <how to test end-to-end, e.g., "Generate output and verify structure">
+  - **Edge cases**: <list 2-3 edge cases, e.g., "Empty input, very long text, unsupported formats">
+  ```
+
+- **Security Considerations** — One paragraph referencing AGENTS.md 1.2 requirements. Include credential management, input validation, and any OWASP-relevant concerns. Format:
+  ```markdown
+  ## Security Considerations
+
+  - **Credential storage**: <e.g., "All API keys stored in process.env only — never in config files">
+  - **Input validation**: <e.g., "Validate all user input against Zod schemas before processing">
+  - **OWASP**: <e.g., "Parameterized queries for all database operations, URL allowlist for outbound requests">
+  ```
+
+**For fix issues, append these sections after the Expected/Actual contrast:**
+
+- **Root Cause Analysis** — One paragraph describing the likely root cause based on the user's description. If you cannot determine the root cause from the description alone, write `Unknown — audit required`.
+- **Testing Strategy** — One paragraph describing regression tests to prevent recurrence.
+- **Security Considerations** — If the fix touches sensitive areas (auth, input handling, file I/O), note OWASP-relevant concerns.
+
 **Capture the populated template body** — store it in `$FULL_TEMPLATE_BODY` for use in Step 5:
 
 ```bash
@@ -142,6 +194,24 @@ FULL_TEMPLATE_BODY=$(sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH")
     **Exception:** Issue references in the form `#<number>` (e.g., `resolves #42`, `see #17`) are **preserved** and SHOULD NOT be stripped — GitHub uses them to create clickable links to those issues. This rule applies only to stray `#` characters in content, not to valid GitHub issue references.
 
 5. **Write the updated body** to the temp file before proceeding to step 5.
+
+### 4.6. Append Split Recommendation (if scope judgment triggered)
+
+**If step 2.5 flagged bundling, append a "Split Recommendation" section to the issue body.** This goes after the Environment section (step 4.5) and before the OpenSpec Note.
+
+```markdown
+## Split Recommendation
+
+This issue bundles multiple distinct capabilities. Consider splitting into separate issues:
+
+- **<Capability 1>** — <brief reason why it should be separate>
+- **<Capability 2>** — <brief reason why it should be separate>
+- **<Capability 3>** — <brief reason why it should be separate>
+
+**MVP recommendation:** Start with <first capability> as it has the least dependencies and highest immediate value.
+```
+
+**Write the updated body** to the temp file before proceeding to step 5.
 
 **Example transformation:**
 ```
@@ -300,6 +370,42 @@ GitHub issue bodies have a 65,536 character limit. If your audit findings are la
 - If findings exceed 10,000 characters, summarize: list files with issues and note "Full details in attached log" (then attach if possible)
 - Never truncate mid-sentence — always end with a complete thought
 
+### 6.6. Fix Steps — Actionable implementation guidance
+
+**After the audit (step 6), append a "Fix Steps" section to the issue body.** This gives the implementer a clear, sequential path from zero to working code. Do not skip this step — it is what makes the issue actionable.
+
+**For fix issues, the Fix Steps should include:**
+
+```markdown
+## Fix Steps
+
+1. **Locate the bug** — Open `path/to/file.ts` and find the code at line <N> that causes the issue.
+2. **Add validation** — Insert a check at line <N> that validates <input/state> before <operation>.
+3. **Handle the error** — Return a user-friendly error message instead of crashing.
+4. **Add a test** — Create `tests/unit/path/to/file.test.js` with a test case for the edge case.
+5. **Verify** — Run `npm run test` and `npm run coverage` to confirm no regressions.
+```
+
+**For feat issues, the Fix Steps should include:**
+
+```markdown
+## Fix Steps
+
+1. **Create the tool file** — Add `src/tools/<name>/index.js` with a Zod schema and impl function.
+2. **Register the tool** — Add the tool to `src/tools/index.js` with the appropriate permissions.
+3. **Write unit tests** — Add `tests/unit/tools/<name>.test.js` covering schema validation and core logic.
+4. **Write integration test** — Add `tests/integration/tools/<name>.test.js` covering end-to-end behavior.
+5. **Update documentation** — Add JSDoc comments to all public functions with `@param` and `@returns`.
+6. **Verify** — Run `npm run test`, `npm run lint`, and `npm run coverage` to confirm everything passes.
+```
+
+**General rules for Fix Steps:**
+- Be specific — reference actual file paths, line numbers, and function names from the audit.
+- Be sequential — each step should build on the previous one.
+- Include verification — always end with a step that confirms the fix/feature works (tests, lint, coverage).
+- If the audit didn't yield specific file paths, use placeholders: `src/tools/<name>/index.js`, `tests/unit/tools/<name>.test.js`.
+- Keep it to 5-7 steps max. If more are needed, group related steps.
+
 ### 7. Report
 
 Print a final summary:
@@ -333,21 +439,62 @@ Filling bug_report template...
   Reproduction: 1. Start madz TUI 2. Type a very long command (e.g., 500+ characters) 3. Press Enter
   Expected: The command is processed or truncated gracefully.
   Actual: The TUI becomes unresponsive and requires a force quit.
+  Root Cause: Unknown — audit required
+  Testing: Add regression test for long input in src/tui/inputPanel.test.js
+  Security: Input validation prevents buffer overflow and DoS
 
 Creating issue...
 Created issue #256: fix: TUI hangs on long command input
 URL: https://github.com/avoidwork/madz/issues/256
 
 Auditing codebase...
-  Found input handler in src/tui/input.ts:87 — no length validation before dispatch.
+  Found input handler in src/tui/inputPanel.ts:87 — no length validation before dispatch.
   Related: src/tui/provider.ts handles command dispatch but assumes valid input.
 
-Updating issue with audit findings...
+Updating issue with audit findings and fix steps...
 
 Created issue #256: fix: TUI hangs on long command input
 URL: https://github.com/avoidwork/madz/issues/256
 Category: fix
-Audit: Root cause in src/tui/input.ts:87 — no length validation before dispatch
+Audit: Root cause in src/tui/inputPanel.ts:87 — no length validation before dispatch
+Fix: 5 steps provided — locate bug, add validation, handle error, add test, verify
+```
+
+## Example — Broad Scope (Split Recommended)
+
+```
+User: create-issue add Google Docs, Sheets, Drive, Word, Excel, and OneDrive integration
+
+Agent: Categorizing... This is a feat — new capability.
+Scope judgment: Bundles 6 distinct API integrations. Recommend splitting.
+
+Synthesizing title: feat: add Google Workspace / Microsoft 365 API integration
+
+Filling feature_request template...
+  Summary: Add tools for interacting with Google Workspace (Docs, Sheets, Drive) and Microsoft 365 (Word, Excel, OneDrive) via their respective APIs.
+  Motivation: Real office workflows live in cloud productivity suites — users need to create, edit, and manage documents in these platforms directly.
+  Proposed Solution: Create API integration tools for Google Docs, Sheets, Drive, Microsoft Word, Excel, and OneDrive.
+  Dependencies: googleapis (v144.x), @microsoft/microsoft-graph-client (v3.x), google-auth-library (v9.x), @azure/identity (v4.x), better-sqlite3 (v11.x)
+  Testing: Unit tests with mocked OAuth, integration tests with sandbox environments, edge cases for large docs and rate limits
+  Security: Encrypted token storage, least-privilege scopes, rate limiting, PII handling
+
+Creating issue...
+Created issue #783: feat: add Google Workspace / Microsoft 365 API integration
+URL: https://github.com/avoidwork/madz/issues/783
+
+Auditing codebase...
+  No existing cloud API tools found — this is a greenfield feature.
+  Integration point: src/tools/index.js for tool registration.
+  OAuth infrastructure: none exists yet — needs to be built first.
+
+Updating issue with audit findings, dependencies, testing, security, and fix steps...
+
+Created issue #783: feat: add Google Workspace / Microsoft 365 API integration
+URL: https://github.com/avoidwork/madz/issues/783
+Category: feat
+Audit: Greenfield — no existing cloud API tools, OAuth infrastructure needed first
+Split recommended: 6 APIs bundled — start with Google Docs + Sheets as MVP
+Fix: 6 steps provided — create tool files, register, test, document, verify
 ```
 
 ---
