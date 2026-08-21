@@ -227,6 +227,12 @@ For each directory in the queue:
 - **Partial audit:** If some directories succeed and others fail, report what was accomplished. Never leave the audit half-done.
 - **Rate limit:** If GitHub API returns 403 rate limit, wait 60 seconds and retry once.
 
+## Gotchas
+
+- **Security findings must never include raw secret values.** The audit table only reports pattern type and count — never the matched line content. Writing secrets to a GitHub issue exposes them to anyone with repo access.
+- **State file cleanup is critical.** Always delete the state file at the start of a new audit and at the end when complete. Stale state files cause incorrect resume behavior.
+- **`gh` CLI must be authenticated before starting.** The audit will fail silently at Step 6 if `gh` is not logged in. Run `gh auth login` first.
+
 ## Output Format
 
 Each phase response must include:

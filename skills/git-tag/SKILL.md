@@ -295,4 +295,11 @@ Pushed: origin/$TAG_VERSION
 $DESCRIPTION
 ```
 
+## Gotchas
+
+- **No "v" prefix.** The tag must use the exact version string from the package manager file (e.g., `1.3.5`, not `v1.3.5`).
+- **Tags are immutable.** Once pushed, a tag cannot be overwritten. The skill checks for existing tags locally and on the remote before creating.
+- **Clean working tree required.** The skill stops if there are uncommitted changes. A dirty tree means the tag would not represent a clean release.
+- **Detached HEAD is handled automatically.** If in detached HEAD state, the skill creates a temporary branch for tagging.
+
 ---

@@ -182,6 +182,13 @@ If the PR number cannot be extracted or the comment fails, note it in the final 
 - **Network error:** Retry once, then report the failure.
 - **`/create-feature` failure:** Report the specific failure and continue with what was accomplished. Never leave the queue half-done.
 
+## Gotchas
+
+- **Approval is mandatory.** The skill stops immediately if the issue lacks the `approved` label. Do not attempt to bypass this check.
+- **`in progress` label prevents re-processing.** If the label is present, the skill reports and exits — the issue is already being worked on.
+- **PR number extraction is multi-pattern.** The `create-feature` output may contain the PR number in several formats. The skill tries 4 patterns in order — do not assume a single format.
+- **Todo management is delegated.** The `create-feature` skill owns todo items. Do not create todos in this skill.
+
 ## Example
 
 ```

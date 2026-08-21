@@ -92,4 +92,33 @@ Docker user: $DOCKER_USER
 
 If the build fails, include the last 10 lines of output for context.
 
+## Examples
+
+```
+User: release-madz
+
+Agent: Pre-flight check...
+  Version: 1.45.1
+  Docker daemon: running
+  Disk space: 15GB available
+  Image exists: NOT_FOUND
+
+Running build...
+  npm run docker:release:all
+  [build output...]
+
+Release complete.
+Status: SUCCESS
+Images built and pushed.
+Version: 1.45.1
+Docker user: avoidwork
+```
+
+## Gotchas
+
+- **This skill is NOT retryable.** Docker image tags are immutable. Once `1.23.0` is pushed, it cannot be overwritten. A second run with the same version will fail. If the build fails, fix the underlying issue, bump the version, and run again — do not re-run this skill against the same tag.
+- **Always check disk space.** Docker builds need ~2GB free. If disk space is insufficient, the build will fail partway through.
+- **Verify Docker is running.** The pre-flight check verifies the Docker daemon is accessible. If it's not, start Docker before proceeding.
+- **Registry auth must be configured.** If `docker info` shows unclear login status, the push will fail. Run `docker login` first.
+
 ---

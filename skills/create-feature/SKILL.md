@@ -489,3 +489,10 @@ If any files remain, report them and remove manually.
 - If 3 audit iterations are exhausted and errors remain, report the remaining issues and stop.
 - If `gh` API calls fail, report the error and provide the manual commands needed.
 - Always leave the repository in a clean state (working tree clean, on the feature branch).
+
+## Gotchas
+
+- **Session IDs prevent collisions.** When running multiple instances (e.g., subagents), always use a unique `SESSION_ID` to avoid temp file collisions.
+- **`commit-push` is delegated, not inline.** Steps 6, 7.5, and 10 invoke `commit-push` as a chain instruction — do not perform git operations inline at those steps.
+- **The pipeline is non-blocking.** After each delegated skill completes, the pipeline proceeds automatically. Do not wait for user confirmation between steps.
+- **`openspec-apply-change` is resumable.** If interrupted by timeout or context limit, re-invoke with the same `CHANGE_NAME` to resume from where it left off.

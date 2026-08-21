@@ -57,4 +57,31 @@ echo "Purge complete."
 echo "Remaining branches: $REMAINING"
 ```
 
+## Examples
+
+```
+User: purge-branches
+
+Agent: Checking current branch: feature/add-auth
+Branches that will be deleted:
+feature/add-auth
+fix/typo-in-readme
+chore/update-deps
+
+Total: 3 branches to delete
+
+Deleted: feature/add-auth
+Deleted: fix/typo-in-readme
+Deleted: chore/update-deps
+
+Purge complete.
+Remaining branches: 0
+```
+
+## Gotchas
+
+- **The current branch is safe.** The skill only deletes branches other than `main`. If you're on `main`, no branches are deleted.
+- **Force delete (`-D`) is used.** Branches that haven't been merged are deleted without checking merge status. Verify you don't need a branch before running.
+- **Cannot undo.** Once deleted, local branches are gone. Use `git reflog` to recover if needed, but this is not guaranteed.
+
 ---

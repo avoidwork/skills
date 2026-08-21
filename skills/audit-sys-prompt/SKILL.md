@@ -169,7 +169,11 @@ Return **ONLY valid JSON**. Do not include markdown, explanations, or extra text
 - **Custom weights validation:** If `custom_weights` contains invalid keys (not in the 7 criterion keys), log a WARN and ignore the invalid keys. Do not abort.
 - **Multi-document YAML:** If the system prompt contains YAML frontmatter, strip it before evaluation. The prompt body is the content after the frontmatter.
 
----
+## Gotchas
+
+- **JSON output must be strictly valid.** The agent must validate the JSON before returning — no trailing commas, all keys quoted, proper escaping. If validation fails, regenerate.
+- **Custom weights must sum to 1.0 after normalization.** Invalid keys are silently ignored with a WARN, but the remaining weights are auto-normalized.
+- **Truncated prompts degrade confidence.** If the prompt exceeds 50,000 characters, set `confidence_score ≤ 0.8` and note the truncation in `rationale`.
 
 ## Usage
 

@@ -299,3 +299,12 @@ Example output:
 ```
 PR created: https://github.com/<owner>/<repo>/pull/<number>
 ```
+
+## Gotchas
+
+- **Never commit directly to `main`.** Always create a feature branch first. The skill synthesizes a branch name automatically if none exists.
+- **Empty change sets are silently rejected.** If `git status --porcelain` returns nothing after staging, the skill stops — no empty commits are created.
+- **Existing PRs are detected and reused.** If a PR already exists for the branch, the skill skips PR creation and reports the existing PR number. Do not create duplicate PRs.
+- **PR template sections must never be left blank.** If a section does not apply, write `N/A` rather than skipping it.
+
+## Error Handling
