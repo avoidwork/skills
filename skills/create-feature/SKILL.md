@@ -374,7 +374,7 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
 ---
 
-## Step 10: Archive and Push (opsx-archive → commit-push)
+## Step 10: Archive and Push (openspec-archive-change → commit-push)
 
 **Purpose:** Archive the OpenSpec change and push the archive (and any remaining implementation fixes from Step 9) to the open PR.
 
