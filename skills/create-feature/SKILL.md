@@ -380,9 +380,35 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
 1. **Archive the OpenSpec change with automatic sync:**
 
-    1. Run the archive:
+    1. **Archive with retry on validation failure** (up to 3 attempts):
+
         ```bash
-        openspec archive "$CHANGE_NAME" --yes
+        ARCHIVE_ATTEMPTS=0
+        ARCHIVE_MAX=3
+        while [ $ARCHIVE_ATTEMPTS -lt $ARCHIVE_MAX ]; do
+          ARCHIVE_ATTEMPTS=$((ARCHIVE_ATTEMPTS + 1))
+          echo "Archive attempt $ARCHIVE_ATTEMPTS/$ARCHIVE_MAX..."
+
+          ARCHIVE_OUTPUT=$(openspec archive "$CHANGE_NAME" --yes 2>&1)
+          ARCHIVE_EXIT=$?
+
+          if [ $ARCHIVE_EXIT -eq 0 ]; then
+            echo "$ARCHIVE_OUTPUT" > "${SESSION_ID}-archive-output.md"
+            echo "Archive succeeded on attempt $ARCHIVE_ATTEMPTS."
+            break
+          fi
+
+          echo "Archive failed (attempt $ARCHIVE_ATTEMPTS): $ARCHIVE_OUTPUT"
+          echo "$ARCHIVE_OUTPUT" > "${SESSION_ID}-archive-error.md"
+
+          if [ $ARCHIVE_ATTEMPTS -ge $ARCHIVE_MAX ]; then
+            echo "ERROR: Archive failed after $ARCHIVE_MAX attempts. Stopping."
+            exit 1
+          fi
+
+          echo "Archive validation failed. Resolving spec issues and retrying..."
+          # Fall through to spec-fix loop below
+        done
         ```
 
     2. **When presented with a sync prompt**, automatically choose **sync** (the recommended option). Do not require user input — just select sync:
@@ -390,7 +416,19 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
         - If the prompt shows "Archive now" / "Sync anyway" / "Cancel" → choose "Archive now"
         - If no delta specs exist → proceed without sync prompt
 
-    3. **Verify** the archive was created:
+    3. **Resolve spec issues if archive validation failed** (up to 3 fix iterations):
+
+        If the archive step above broke out of the success loop due to a validation error (i.e., `openspec archive` returned non-zero), the file `${SESSION_ID}-archive-error.md` contains the error details. Use those details to identify and fix the underlying spec issues:
+
+        - Read `${SESSION_ID}-archive-error.md` to understand what validation failed (missing requirements, inconsistent specs, task-to-spec mismatches, etc.)
+        - Fix the relevant spec documents (proposal.md, design.md, tasks.md, and any spec deltas in `specs/`)
+        - Update tasks.md if task-to-spec mapping is broken
+        - Re-run the archive attempt (the loop above will pick up and try again)
+        - Repeat until archive succeeds or 3 fix iterations are exhausted
+
+        **If archive still fails after 3 fix iterations**, report the remaining validation errors and stop. Do not proceed with an unarchived change.
+
+    4. **Verify** the archive was created:
         ```bash
         ls openspec/changes/archive/
         ```
