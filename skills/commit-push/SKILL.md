@@ -11,6 +11,23 @@ metadata:
 
 You are the final step in the craft. Precision matters. Follow these steps in order.
 
+## 0.5: Capture Issue ID
+
+If the invoking skill provides an issue ID (e.g., from `fix-issue` or `create-feature` chain), extract it so the PR body can include a `Closes #<ISSUE_ID>` line.
+
+```bash
+# Extract ISSUE_ID from input context if provided (e.g., "ISSUE_ID=42 commit-push ...")
+ISSUE_ID=""
+if echo "$INPUT" | grep -qP '^ISSUE_ID=\d+\s+commit-push'; then
+  ISSUE_ID=$(echo "$INPUT" | grep -oP 'ISSUE_ID=\K\d+')
+  echo "ISSUE_ID=$ISSUE_ID"
+fi
+```
+
+If `ISSUE_ID` is set, the PR body will include `Closes #<ISSUE_ID>` so the source issue auto-closes when the PR merges.
+
+---
+
 ## 1. Read the Rules
 
 Before touching a single file, scan the project root and any specified paths for an `AGENTS.md` rules file and read its contents.
@@ -234,6 +251,15 @@ cat > "$BODY_FILE" << BODYEOF
 BODYEOF
 ```
 
+**If `ISSUE_ID` is set**, append a `Closes` line to the body file so the source issue auto-closes when the PR merges:
+
+```bash
+if [ -n "$ISSUE_ID" ]; then
+  echo "" >> "$BODY_FILE"
+  echo "Closes #$ISSUE_ID" >> "$BODY_FILE"
+fi
+```
+
 ### 8.3 Create the PR
 
 **If `TEMPLATE_FILE` was found in Step 8.2:** Use the filled-in body from the temp file (Rule 5.4 compliance). Fill in every section from the template — do not leave any blank. If a section is not applicable, write `N/A`.
@@ -291,6 +317,37 @@ echo "PR_URL=$NEW_PR_URL"
 ```
 
 ## 9. Verification
+
+### 9.1 Verify PR Body
+
+After the PR is created (Step 8) or updated (Step 7), verify the PR body was set correctly by reading it back from the API:
+
+```bash
+PR_NUMBER=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json number --jq '.[0].number' 2>/dev/null || true)
+if [ -z "$PR_NUMBER" ]; then
+  echo "WARNING: Could not determine PR number for body verification."
+else
+  ACTUAL_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body' 2>/dev/null || true)
+  EXPECTED_BODY=$(cat "$BODY_FILE" 2>/dev/null || true)
+  if [ -n "$ACTUAL_BODY" ] && [ -n "$EXPECTED_BODY" ]; then
+    if [ "$ACTUAL_BODY" = "$EXPECTED_BODY" ]; then
+      echo "PR body verified successfully."
+    else
+      echo "WARNING: PR body mismatch detected."
+      echo "Expected:"
+      echo "$EXPECTED_BODY"
+      echo ""
+      echo "Actual:"
+      echo "$ACTUAL_BODY"
+      echo ""
+      echo "Attempting to fix..."
+      gh api "repos/$GH_REPO/pulls/$PR_NUMBER" -X PATCH -f body="$EXPECTED_BODY" 2>/dev/null || true
+    fi
+  fi
+fi
+```
+
+### 9.2 Confirm PR URL
 
 - Confirm the PR was created successfully (or note the existing PR URL from Step 7).
 - Output the PR URL for the user so they can review it.
