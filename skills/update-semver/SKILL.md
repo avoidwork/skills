@@ -152,7 +152,7 @@ Delegating version release to `commit-push`, which will:
 5. Open a PR targeting `main`
 
 ```
-commit-push
+Run the skill commit-push
 ```
 
 **After `commit-push` completes, continue to Step 9.** Do not stop or wait for further input — the pipeline proceeds automatically.

@@ -164,10 +164,10 @@ After analyzing all files in the directory:
 
 #### Step D: Create Issue
 
-Invoke the `create-issue` skill as a chain instruction (text delegation). The issue body will be replaced in Step D2.
+Run the skill `create-issue` as a chain instruction (text delegation). The issue body will be replaced in Step D2.
 
 ```
-create-issue refactor: restructure src/[directory] for better organization — placeholder body will be replaced with full restructuring analysis
+Run the skill create-issue refactor: restructure src/[directory] for better organization — placeholder body will be replaced with full restructuring analysis
 ```
 
 The title should be concise and descriptive, prefixed with `refactor:` since restructuring is a refactor. Example: `refactor: restructure src/components for better cohesion`

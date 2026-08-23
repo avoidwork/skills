@@ -114,10 +114,10 @@ Map the categorized type to a conventional commit prefix for the branch name:
 | `docs`   | `docs`      |
 | `test`   | `test`      |
 
-Invoke the `create-feature` skill as a chain instruction (text delegation), passing the branch type via `BRANCH_TYPE`:
+Run the skill `create-feature` as a chain instruction (text delegation), passing the branch type via `BRANCH_TYPE`:
 
 ```
-BRANCH_TYPE=<type> create-feature Fix issue #<ID>: <brief description>. See <url> for full details.
+Run the skill create-feature BRANCH_TYPE=<type> Fix issue #<ID>: <brief description>. See <url> for full details.
 ```
 
 Keep the chain instruction under 300 characters to avoid parsing issues.
