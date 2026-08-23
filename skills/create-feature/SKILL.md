@@ -242,10 +242,10 @@ Write audit findings to a file named `${SESSION_ID}-audit-results.md` (use an ex
 
 **Purpose:** Lock the spec documents into a pull request before implementation begins.
 
-**Do not perform git operations inline.** Run the skill `commit-push` to handle staging, committing, pushing, and PR creation.
+**Do not perform git operations inline.** Invoke the `commit-push` skill to handle staging, committing, pushing, and PR creation.
 
 ```
-Run the skill commit-push
+invoke commit-push skill
 ```
 
 The `commit-push` skill will:
@@ -276,10 +276,10 @@ If `/commit-push` fails, report the error and stop. Do not attempt to recover wi
 
 ## Step 7: Apply Tasks (via openspec-apply-change)
 
-Run the skill `openspec-apply-change` to implement all tasks from `tasks.md`:
+Invoke the `openspec-apply-change` skill to implement all tasks from `tasks.md`:
 
 ```
-Run the skill openspec-apply-change "$CHANGE_NAME"
+invoke openspec-apply-change skill "$CHANGE_NAME"
 ```
 
 The `openspec-apply-change` skill will:
@@ -318,10 +318,10 @@ If any verification fails, fix the issues and re-verify.
 
 **Purpose:** Push the code produced by `openspec-apply-change` to the open PR.
 
-Run the skill `commit-push` to stage, commit, push, and update the existing PR:
+Invoke the `commit-push` skill to stage, commit, push, and update the existing PR:
 
 ```
-Run the skill commit-push
+invoke commit-push skill
 ```
 
 This will:
@@ -435,10 +435,10 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
     The change directory should now be under `openspec/changes/archive/YYYY-MM-DD-<name>/`.
 
-2. **Push the archive (and all remaining changes) to the open PR** by running the skill `commit-push`:
+2. **Push the archive (and all remaining changes) to the open PR** by invoking `commit-push`:
 
     ```
-    Run the skill commit-push
+    invoke commit-push skill
     ```
 
     This will:
