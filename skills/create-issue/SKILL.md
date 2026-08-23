@@ -9,6 +9,8 @@ metadata:
 
 # Create Issue
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 Receives a user description, synthesizes it into a polished title and description, categorizes the work as a **fix** or **feat**, creates a GitHub issue, audits the codebase for actionable details, and updates the issue with findings.
 
 ## Workflow

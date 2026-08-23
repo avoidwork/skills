@@ -9,6 +9,8 @@ metadata:
 
 # Purge Branches
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 Delete all local branches except `main`. Pure git — no npm, no package.json required.
 
 ## Pre-flight Check

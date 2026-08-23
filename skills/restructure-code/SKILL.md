@@ -12,6 +12,8 @@ metadata:
 
 # Restructure Code
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 Audit the `./src` directory tree for opportunities to restructure directories to align with community best practices and better organization. Execute in **strict sequential phases** — one directory per phase, no lookahead, no batching.
 
 ## State Management

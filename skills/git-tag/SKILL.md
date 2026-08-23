@@ -9,6 +9,8 @@ metadata:
 
 # Git Tag
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 You must execute ALL steps in order. Do not stop until the tag is pushed and verified on the remote. If any step fails, report the error and stop — do not continue with incomplete work.
 
 ## Step 1: Read the Version

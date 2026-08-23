@@ -9,6 +9,8 @@ metadata:
 
 # Commit & Push
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 You are the final step in the craft. Precision matters. Follow these steps in order.
 
 ## 0.5: Capture Issue ID

@@ -9,6 +9,8 @@ metadata:
 
 # Scan & Fix Issues
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 An autonomous issue scanner and fixer. Finds approved, unassigned issues and processes them **one at a time** through the `fix-issue` pipeline, each in its own git worktree.
 
 ## Workflow
