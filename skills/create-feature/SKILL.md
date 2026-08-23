@@ -244,10 +244,6 @@ Write audit findings to a file named `${SESSION_ID}-audit-results.md` (use an ex
 
 **Do not perform git operations inline.** Invoke the `commit-push` skill to handle staging, committing, pushing, and PR creation.
 
-```
-invoke commit-push skill
-```
-
 The `commit-push` skill will:
 - Stage all OpenSpec files and spec deltas
 - Commit using conventional commit format from the scanned project rules §5.1
@@ -276,11 +272,7 @@ If `/commit-push` fails, report the error and stop. Do not attempt to recover wi
 
 ## Step 7: Apply Tasks (via openspec-apply-change)
 
-Invoke the `openspec-apply-change` skill to implement all tasks from `tasks.md`:
-
-```
-invoke openspec-apply-change skill "$CHANGE_NAME"
-```
+Invoke the `openspec-apply-change` skill to implement all tasks from `tasks.md`.
 
 The `openspec-apply-change` skill will:
 - Read the tasks from `tasks.md`
@@ -318,11 +310,7 @@ If any verification fails, fix the issues and re-verify.
 
 **Purpose:** Push the code produced by `openspec-apply-change` to the open PR.
 
-Invoke the `commit-push` skill to stage, commit, push, and update the existing PR:
-
-```
-invoke commit-push skill
-```
+Invoke the `commit-push` skill to stage, commit, push, and update the existing PR.
 
 This will:
 - Stage all implementation files (not openspec files — they are already committed)
@@ -435,11 +423,7 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
     The change directory should now be under `openspec/changes/archive/YYYY-MM-DD-<name>/`.
 
-2. **Push the archive (and all remaining changes) to the open PR** by invoking `commit-push`:
-
-    ```
-    invoke commit-push skill
-    ```
+2. **Push the archive (and all remaining changes) to the open PR** by invoking `commit-push`.
 
     This will:
     - Stage the archived change directory and any delta specs synced from the archive
