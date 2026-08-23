@@ -91,15 +91,33 @@ fi
 
 1. If `CHANGED_FILES` is empty (no changes), use a generic slug: `feat/no-changes`. Log a warning and proceed to staging.
 2. If any file matches `src/<module>/` or `tests/<module>/`, extract `<module>` as the slug.
-3. If no module pattern matches, take the first changed file: `FIRST_FILE=$(echo "$CHANGED_FILES" | head -1)`, extract basename, strip directories/extensions/special characters to form the slug.
+3. If no module pattern matches, take the first changed file, extract basename, strip directories/extensions/special characters to form the slug.
 4. Prepend the appropriate prefix based on the commit type (inferred in Step 1 from the scanned rules, or default to `feat`).
 
 ```bash
 # Infer COMMIT_TYPE from the rules scanned in Step 1, or default to feat.
 COMMIT_TYPE="feat"
-# Set SLUG from the strategy above (e.g., from CHANGED_FILES analysis).
-SLUG="<SYNTHESIZED_SLUG>"
+
+# Determine SLUG from CHANGED_FILES
+SLUG="no-changes"
+if [ -n "$CHANGED_FILES" ]; then
+  # Priority 2: Check for src/<module>/ or tests/<module>/ pattern
+  SLUG=$(echo "$CHANGED_FILES" | grep -oP '(?:src|tests)/\K[^/]+' | head -1)
+
+  # Priority 3: Fall back to first file basename
+  if [ -z "$SLUG" ]; then
+    FIRST_FILE=$(echo "$CHANGED_FILES" | head -1)
+    SLUG=$(basename "$FIRST_FILE" | sed 's/\.[^.]*$//' | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+  fi
+
+  # Default to first file if still empty
+  if [ -z "$SLUG" ]; then
+    SLUG="changes"
+  fi
+fi
+
 git checkout -b "${COMMIT_TYPE}/${SLUG}"
+echo "BRANCH_NAME=${COMMIT_TYPE}/${SLUG}"
 ```
 
 ## 4. Stage Everything
@@ -176,11 +194,10 @@ Before creating a new PR, check whether one already exists:
 EXISTING_PR_URL=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json url --jq '.[0].url' 2>/dev/null || true)
 ```
 
-- **If a URL is returned:** Do **not** create a new PR. Extract the PR number and output it:
-  ```bash
-  EXISTING_PR_NUMBER=$(echo "$EXISTING_PR_URL" | grep -oP '/pull/\K\d+')
-  echo "PR_NUMBER=$EXISTING_PR_NUMBER"
-  echo "EXISTING_PR=$EXISTING_PR_URL"
+- **If a URL is returned:** Do **not** create a new PR. Extract the PR number and print it as structured output:
+  ```
+  PR_NUMBER=<number>
+  PR_URL=<url>
   ```
   Then skip to Step 9.
 
@@ -233,10 +250,13 @@ done
 ```bash
 BODY_FILE=$(mktemp)
 
+# Capture the commit subject and changed files for substitution
+COMMIT_SUBJECT=$(git log -1 --oneline | sed 's/^[a-f0-9]* //')
+CHANGED_FILES=$(git diff --name-only HEAD~1 | head -5 | tr '\n' ', ' | sed 's/,$//')
+
 # Read the template, replace placeholders with actual content, write to temp file
-# The agent must populate every section from the commit/file context.
-sed -e 's/<commit subject>/'"$(git log -1 --oneline)"'/g' \
-    -e 's/<comma-separated changed filenames, shortened>/'"$(git diff --name-only HEAD~1 | head -5 | tr '\n' ', ' | sed 's/,$//')"'/g' \
+sed -e "s/<commit subject>/$COMMIT_SUBJECT/g" \
+    -e "s/<comma-separated changed filenames, shortened>/$CHANGED_FILES/g" \
     "$TEMPLATE_FILE" > "$BODY_FILE"
 ```
 
@@ -302,47 +322,37 @@ gh pr create \
 - Otherwise → add `--label "feature"`
 - If multiple types are present, use `"bug"` only if any commit is a fix; otherwise `"feature"`
 
-**After creating the PR**, extract and output the number:
+**After creating the PR, print the structured output:**
 
-```bash
-NEW_PR_NUMBER=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json number --jq '.[0].number' 2>/dev/null || true)
-echo "PR_NUMBER=$NEW_PR_NUMBER"
+```
+PR_NUMBER=<number>
+PR_URL=<url>
 ```
 
-If `NEW_PR_NUMBER` is empty, fall back to extracting from the PR URL:
-
-```bash
-NEW_PR_URL=$(gh pr view --json url --jq '.url' 2>/dev/null || true)
-echo "PR_URL=$NEW_PR_URL"
-```
+Extract the number from the `gh pr create` output or from the PR URL. The URL format is `https://github.com/<owner>/<repo>/pull/<number>`.
 
 ## 9. Verification
 
 ### 9.1 Verify PR Body
 
-After the PR is created (Step 8) or updated (Step 7), verify the PR body was set correctly by reading it back from the API:
+After the PR is created (Step 8) or updated (Step 7), verify the PR body was set correctly by reading it back from the API. Use the `PR_NUMBER` from the structured output in Step 7 or 8:
 
 ```bash
-PR_NUMBER=$(gh pr list --head "$(git branch --show-current)" --base main --state open --json number --jq '.[0].number' 2>/dev/null || true)
-if [ -z "$PR_NUMBER" ]; then
-  echo "WARNING: Could not determine PR number for body verification."
-else
-  ACTUAL_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body' 2>/dev/null || true)
-  EXPECTED_BODY=$(cat "$BODY_FILE" 2>/dev/null || true)
-  if [ -n "$ACTUAL_BODY" ] && [ -n "$EXPECTED_BODY" ]; then
-    if [ "$ACTUAL_BODY" = "$EXPECTED_BODY" ]; then
-      echo "PR body verified successfully."
-    else
-      echo "WARNING: PR body mismatch detected."
-      echo "Expected:"
-      echo "$EXPECTED_BODY"
-      echo ""
-      echo "Actual:"
-      echo "$ACTUAL_BODY"
-      echo ""
-      echo "Attempting to fix..."
-      gh api "repos/$GH_REPO/pulls/$PR_NUMBER" -X PATCH -f body="$EXPECTED_BODY" 2>/dev/null || true
-    fi
+ACTUAL_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body' 2>/dev/null || true)
+EXPECTED_BODY=$(cat "$BODY_FILE" 2>/dev/null || true)
+if [ -n "$ACTUAL_BODY" ] && [ -n "$EXPECTED_BODY" ]; then
+  if [ "$ACTUAL_BODY" = "$EXPECTED_BODY" ]; then
+    echo "PR body verified successfully."
+  else
+    echo "WARNING: PR body mismatch detected."
+    echo "Expected:"
+    echo "$EXPECTED_BODY"
+    echo ""
+    echo "Actual:"
+    echo "$ACTUAL_BODY"
+    echo ""
+    echo "Attempting to fix..."
+    gh api "repos/$GH_REPO/pulls/$PR_NUMBER" -X PATCH -f body="$EXPECTED_BODY" 2>/dev/null || true
   fi
 fi
 ```
