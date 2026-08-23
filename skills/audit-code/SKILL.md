@@ -12,6 +12,8 @@ metadata:
 
 # Audit Code
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Execute **sequentially** — process one directory at a time, saving state between steps.
 
 ## State Management

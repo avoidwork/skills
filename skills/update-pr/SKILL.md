@@ -10,6 +10,8 @@ metadata:
 
 # Update PR
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 Update an existing pull request's title and description following project conventions.
 
 ## When to Use

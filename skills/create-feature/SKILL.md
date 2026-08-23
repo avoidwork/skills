@@ -9,6 +9,8 @@ metadata:
 
 # Create Feature
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 Orchestrate a complete feature lifecycle from raw goals to shipped code. This is the full pipeline — synthesis, specification, implementation, verification, delivery, and archive.
 
 ## Prerequisites

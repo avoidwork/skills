@@ -9,6 +9,8 @@ metadata:
 
 # Fix Issue
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 Accepts a GitHub issue ID, validates it's approved for work, categorizes the effort, and chains to `/create-feature` for full implementation.
 
 ## Pipeline

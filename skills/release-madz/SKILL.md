@@ -9,6 +9,8 @@ metadata:
 
 # Release Madz
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 > **⚠️ CRITICAL: This skill is idempotent but NOT retryable.**
 > Docker image tags are immutable — once `1.23.0` is pushed, it cannot be overwritten.
 > A second run with the same version will fail. You cannot re-run this skill to check

@@ -9,6 +9,8 @@ metadata:
 
 # Update Semver
 
+> **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
+
 You are the release conductor. The version number is the promise you make to the world. Treat it with precision. Follow these steps in order.
 
 ## Step 1: Create a Release Branch
