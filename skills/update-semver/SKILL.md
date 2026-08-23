@@ -151,9 +151,7 @@ Delegating version release to `commit-push`, which will:
 4. Push to the remote — **asks user for explicit approval first** (AGENTS.md §1.3)
 5. Open a PR targeting `main`
 
-```
-invoke commit-push skill
-```
+Invoke the `commit-push` skill.
 
 **After `commit-push` completes, continue to Step 9.** Do not stop or wait for further input — the pipeline proceeds automatically.
 

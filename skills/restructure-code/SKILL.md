@@ -166,10 +166,6 @@ After analyzing all files in the directory:
 
 Invoke the `create-issue` skill as a chain instruction (text delegation). The issue body will be replaced in Step D2.
 
-```
-invoke create-issue skill refactor: restructure src/[directory] for better organization — placeholder body will be replaced with full restructuring analysis
-```
-
 The title should be concise and descriptive, prefixed with `refactor:` since restructuring is a refactor. Example: `refactor: restructure src/components for better cohesion`
 
 **Capture the issue number** from the create-issue output. The issue number appears in the output as `Created issue #<NUMBER>`. Extract it:

@@ -92,10 +92,7 @@ For each issue in the sorted list:
    cd "$WORKTREE_PATH"
    ```
 
-3. **Invoke fix-issue** as a chain instruction:
-   ```
-   invoke fix-issue skill <ISSUE_NUMBER>
-   ```
+3. **Invoke fix-issue** as a chain instruction.
    This chains through the full `fix-issue` → `create-feature` pipeline inside the worktree.
 
 4. **Wait for completion.** Do not proceed to the next issue until the current one is done.
