@@ -126,6 +126,9 @@ Invoke the `create-feature` skill as a chain instruction (text delegation), pass
 - Testing
 - PR creation
 - Archival
+- Prints structured output: `PR_NUMBER=<number>` and `PR_URL=<url>`
+
+**Read the `PR_NUMBER` from the structured output printed by `create-feature`.** Do not attempt to grep a shell variable — the value is in the conversation history.
 
 **Do NOT create todo items in this skill.** Todo management is the sole responsibility of `create-feature`.
 
@@ -135,39 +138,13 @@ Invoke the `create-feature` skill as a chain instruction (text delegation), pass
 
 **Skip this step if create-feature failed.** If create-feature failed (per Step 6 error handling), do not attempt to comment — the PR was never created.
 
-Extract the PR number from the `create-feature` invocation result. The PR number may appear in several formats depending on where create-feature is in its pipeline. Try each pattern:
+Use the `PR_NUMBER` from the structured output printed by `create-feature` in Step 6. Do not attempt to extract it from a shell variable — it is in the conversation history.
 
 ```bash
-# Try 1: Look for "PR_NUMBER=<NUMBER>" pattern from commit-push output
-PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'PR_NUMBER=\K\d+' | head -1)
-
-# Try 2: Look for "PR:" followed by a URL — create-feature Step 14 format
-if [ -z "$PR_NUMBER" ]; then
-  PR_URL=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP '(?<=PR: )https://[^ ]+' | head -1)
-  if [ -n "$PR_URL" ]; then
-    PR_NUMBER=$(echo "$PR_URL" | grep -oP 'pull/\K\d+')
-  fi
-fi
-
-# Try 3: Look for "#<NUMBER>" — legacy format
-if [ -z "$PR_NUMBER" ]; then
-  PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'PR\s*#\K\d+' | head -1)
-fi
-
-# Try 4: Look for "Fixed in #" — legacy format
-if [ -z "$PR_NUMBER" ]; then
-  PR_NUMBER=$(echo "$CREATE_FEATURE_OUTPUT" | grep -oP 'Fixed in\s*#\K\d+' | head -1)
-fi
+gh issue comment "$ISSUE_NUM" --repo "$REPO" --body "Fixed in #${PR_NUMBER}."
 ```
 
-if [ -z "$PR_NUMBER" ]; then
-  echo "WARNING: Could not extract PR number from create-feature output. Skipping comment."
-else
-  gh issue comment <ID> --body "Fixed in #${PR_NUMBER}." --repo "$REPO"
-fi
-```
-
-If the PR number cannot be extracted or the comment fails, note it in the final report but do not stop.
+If the comment fails, note it in the final report but do not stop.
 
 ## Error Handling
 
@@ -180,7 +157,7 @@ If the PR number cannot be extracted or the comment fails, note it in the final 
 
 - **Approval is mandatory.** The skill stops immediately if the issue lacks the `approved` label. Do not attempt to bypass this check.
 - **`in progress` label prevents re-processing.** If the label is present, the skill reports and exits — the issue is already being worked on.
-- **PR number extraction is multi-pattern.** The `create-feature` output may contain the PR number in several formats. The skill tries 4 patterns in order — do not assume a single format.
+- **PR number comes from create-feature output.** The `create-feature` skill prints `PR_NUMBER=<number>` as structured output. Read it from the conversation history.
 - **Todo management is delegated.** The `create-feature` skill owns todo items. Do not create todos in this skill.
 
 ## Example

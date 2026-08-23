@@ -97,10 +97,8 @@ For each issue in the sorted list:
 
 4. **Wait for completion.** Do not proceed to the next issue until the current one is done.
 
-5. **Extract PR_NUMBER from fix-issue output.** The `fix-issue` chain outputs `PR_NUMBER=<number>`. Parse it:
-   ```bash
-   PR_NUMBER=$(grep -oP 'PR_NUMBER=\K\d+' <<< "$FIX_ISSUE_OUTPUT" | head -1)
-   ```
+5. **Extract PR_NUMBER from fix-issue output.** The `fix-issue` chain prints `PR_NUMBER=<number>` as structured output in the conversation history. Read it from there — do not attempt to grep a shell variable.
+
    If `PR_NUMBER` is empty, the issue was skipped or the pipeline didn't create a PR — log it and continue.
 
 6. **If fix-issue succeeds:** Log the issue number and PR number.

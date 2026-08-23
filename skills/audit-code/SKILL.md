@@ -175,11 +175,7 @@ For each directory in the queue:
    ```
    create-issue Audit findings for $CURRENT_PHASE: Found N critical, N high, N medium, N low issues. See audit results below for details.
    ```
-   Capture the issue number from the output:
-   ```bash
-   ISSUE_NUMBER=$(echo "$CREATE_ISSUE_OUTPUT" | grep -oP '#\d+' | head -1 | tr -d '#')
-   ```
-   If the issue number cannot be extracted, note it but continue.
+   Capture the issue number from the `create-issue` output. The `create-issue` skill prints `ISSUE_NUMBER=<number>` as structured output. Read it from the conversation history — do not attempt to grep a shell variable.
 
    **After creating the issue (or failing to), continue to Step 6.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
@@ -189,8 +185,9 @@ For each directory in the queue:
    # Build table from findings
    # ... (populate from audit results)
    echo -e "$AUDIT_TABLE" > /tmp/audit-table.md
-   gh issue edit "$ISSUE_NUMBER" --body-file /tmp/audit-table.md --repo avoidwork/madz
+   gh issue edit "$ISSUE_NUMBER" --body-file /tmp/audit-table.md --repo "$REPO"
    ```
+   Derive `$REPO` from the git remote (same pattern as in `scan-issues` Step 1).
 
 7. **Update State.** Mark the directory as completed in the state file:
     ```bash

@@ -21,29 +21,13 @@ Before starting, ensure:
 
 ## Input Parsing
 
-The input may include a `BRANCH_TYPE` prefix (e.g., `BRANCH_TYPE=fix create-feature ...`). Extract it if present:
+The input may include a `BRANCH_TYPE` prefix (e.g., `BRANCH_TYPE=fix create-feature ...`). Extract it if present in the conversation context.
 
-```bash
-# Extract BRANCH_TYPE from input if provided (e.g., "BRANCH_TYPE=fix create-feature ...")
-if echo "$INPUT" | grep -qP '^BRANCH_TYPE=\w+\s+create-feature'; then
-  BRANCH_TYPE=$(echo "$INPUT" | grep -oP 'BRANCH_TYPE=\K\w+')
-  # Strip the prefix for goal parsing
-  INPUT=$(echo "$INPUT" | sed 's/^BRANCH_TYPE=\w\+\s\+create-feature\s\+//')
-fi
-```
+Read `BRANCH_TYPE` from the conversation history if provided by the invoking skill. If not present, default to `feat`.
 
 ## Input
 
 The user provides a list of goals/features in any format (natural language, JSON, markdown list, etc.). Parse and normalize them into a clean array of goal strings.
-
-**Capture the raw input** — store it in a variable for later use:
-
-```bash
-# The agent must capture whatever the user provided as input.
-# If invoked via chain instruction, the input is the text after "create-feature".
-# Store it for the BRANCH_TYPE extraction block below.
-INPUT="<USER_PROVIDED_INPUT>"
-```
 
 **Example input:**
 > Add a new tool that can summarize web pages, and improve the TUI memory panel to show retention stats.
@@ -253,9 +237,13 @@ The `commit-push` skill will:
 
 Read the `PR_NUMBER` from the structured output printed by `commit-push`. Do not attempt to grep a shell variable — the value is in the conversation history.
 
+Write it to a file for later use in Step 12:
+
 ```bash
-echo "$PR_NUMBER" > "${SESSION_ID}-pr-number.txt"
+echo "<PR_NUMBER_VALUE>" > "${SESSION_ID}-pr-number.txt"
 ```
+
+Replace `<PR_NUMBER_VALUE>` with the actual number read from the conversation history.
 
 If `commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 

@@ -13,16 +13,9 @@ You are the final step in the craft. Precision matters. Follow these steps in or
 
 ## 0.5: Capture Issue ID
 
-If the invoking skill provides an issue ID (e.g., from `fix-issue` or `create-feature` chain), extract it so the PR body can include a `Closes #<ISSUE_ID>` line.
+If the invoking skill provides an issue ID (e.g., from `fix-issue` or `create-feature` chain), read it from the conversation history so the PR body can include a `Closes #<ISSUE_ID>` line.
 
-```bash
-# Extract ISSUE_ID from input context if provided (e.g., "ISSUE_ID=42 commit-push ...")
-ISSUE_ID=""
-if echo "$INPUT" | grep -qP '^ISSUE_ID=\d+\s+commit-push'; then
-  ISSUE_ID=$(echo "$INPUT" | grep -oP 'ISSUE_ID=\K\d+')
-  echo "ISSUE_ID=$ISSUE_ID"
-fi
-```
+Look for `ISSUE_ID=<number>` printed as structured output by the invoking skill in the conversation history. If found, set `ISSUE_ID` to that value.
 
 If `ISSUE_ID` is set, the PR body will include `Closes #<ISSUE_ID>` so the source issue auto-closes when the PR merges.
 
