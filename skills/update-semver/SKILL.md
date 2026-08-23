@@ -157,13 +157,9 @@ Invoke the `commit-push` skill.
 
 ## Step 9: Enable Auto-Merge
 
-After the PR is created, enable auto-merge on it with **squash** merge. Extract the PR number from the `commit-push` output (look for a line like `PR: #123`), then enable auto-merge:
+After the PR is created, enable auto-merge on it with **squash** merge. Extract the PR number from the `commit-push` output (look for `PR_NUMBER=<number>` printed as structured output), then enable auto-merge:
 
 ```bash
-# Extract PR number from commit-push output (replace <PR_NUMBER> with actual number)
-PR_NUMBER=<PR_NUMBER>
-
-# Enable auto-merge
 gh pr merge "$PR_NUMBER" --auto --squash
 echo "Auto-merge: ENABLED (squash)"
 ```

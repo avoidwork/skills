@@ -21,29 +21,13 @@ Before starting, ensure:
 
 ## Input Parsing
 
-The input may include a `BRANCH_TYPE` prefix (e.g., `BRANCH_TYPE=fix create-feature ...`). Extract it if present:
+The input may include a `BRANCH_TYPE` prefix (e.g., `BRANCH_TYPE=fix create-feature ...`). Extract it if present in the conversation context.
 
-```bash
-# Extract BRANCH_TYPE from input if provided (e.g., "BRANCH_TYPE=fix create-feature ...")
-if echo "$INPUT" | grep -qP '^BRANCH_TYPE=\w+\s+create-feature'; then
-  BRANCH_TYPE=$(echo "$INPUT" | grep -oP 'BRANCH_TYPE=\K\w+')
-  # Strip the prefix for goal parsing
-  INPUT=$(echo "$INPUT" | sed 's/^BRANCH_TYPE=\w\+\s\+create-feature\s\+//')
-fi
-```
+Read `BRANCH_TYPE` from the conversation history if provided by the invoking skill. If not present, default to `feat`.
 
 ## Input
 
 The user provides a list of goals/features in any format (natural language, JSON, markdown list, etc.). Parse and normalize them into a clean array of goal strings.
-
-**Capture the raw input** — store it in a variable for later use:
-
-```bash
-# The agent must capture whatever the user provided as input.
-# If invoked via chain instruction, the input is the text after "create-feature".
-# Store it for the BRANCH_TYPE extraction block below.
-INPUT="<USER_PROVIDED_INPUT>"
-```
 
 **Example input:**
 > Add a new tool that can summarize web pages, and improve the TUI memory panel to show retention stats.
@@ -249,24 +233,21 @@ The `commit-push` skill will:
 - Commit using conventional commit format from the scanned project rules §5.1
 - Push to the remote
 - Create a PR using the template from the scanned project rules §5.4
-- Output `PR_NUMBER=<number>` (whether newly created or pre-existing)
+- Print structured output: `PR_NUMBER=<number>` and `PR_URL=<url>`
 
-After `/commit-push` completes, extract the PR number from its output text (the skill outputs `PR_NUMBER=<number>`):
+Read the `PR_NUMBER` from the structured output printed by `commit-push`. Do not attempt to grep a shell variable — the value is in the conversation history.
+
+Write it to a file for later use in Step 12:
 
 ```bash
-# The agent must capture the output from the commit-push chain instruction
-# and extract the PR_NUMBER from it.
-PR_NUMBER=$(echo "$CHAIN_OUTPUT" | grep -oP 'PR_NUMBER=\K\d+' | head -1)
-if [ -z "$PR_NUMBER" ]; then
-  echo "ERROR: Could not extract PR_NUMBER from commit-push output. Stopping."
-  exit 1
-fi
-echo "$PR_NUMBER" > "${SESSION_ID}-pr-number.txt"
+echo "<PR_NUMBER_VALUE>" > "${SESSION_ID}-pr-number.txt"
 ```
 
-If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
+Replace `<PR_NUMBER_VALUE>` with the actual number read from the conversation history.
 
-**After extracting the PR number, continue to Step 7.** Do not stop or wait for further input — the pipeline proceeds automatically.
+If `commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
+
+**After reading the PR number, continue to Step 7.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
 ---
 
@@ -317,8 +298,9 @@ This will:
 - Commit using conventional commit format from the scanned project rules §5.1
 - Push to the remote
 - Update the existing PR (created in Step 6) if `commit-push` detects a pre-existing PR
+- Print structured output: `PR_NUMBER=<number>` and `PR_URL=<url>`
 
-If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
+Read the `PR_NUMBER` from the structured output. If `commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
 **After `/commit-push` completes, continue to Step 8.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
@@ -393,9 +375,6 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
             echo "ERROR: Archive failed after $ARCHIVE_MAX attempts. Stopping."
             exit 1
           fi
-
-          echo "Archive validation failed. Resolving spec issues and retrying..."
-          # Fall through to spec-fix loop below
         done
         ```
 
@@ -406,12 +385,12 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
     3. **Resolve spec issues if archive validation failed** (up to 3 fix iterations):
 
-        If the archive step above broke out of the success loop due to a validation error (i.e., `openspec archive` returned non-zero), the file `${SESSION_ID}-archive-error.md` contains the error details. Use those details to identify and fix the underlying spec issues:
+        If the archive step above exited with an error (i.e., `openspec archive` returned non-zero and the loop terminated via `exit 1`), the file `${SESSION_ID}-archive-error.md` contains the error details. Use those details to identify and fix the underlying spec issues:
 
         - Read `${SESSION_ID}-archive-error.md` to understand what validation failed (missing requirements, inconsistent specs, task-to-spec mismatches, etc.)
         - Fix the relevant spec documents (proposal.md, design.md, tasks.md, and any spec deltas in `specs/`)
         - Update tasks.md if task-to-spec mapping is broken
-        - Re-run the archive attempt (the loop above will pick up and try again)
+        - Re-run the archive attempt (go back to step 1 above)
         - Repeat until archive succeeds or 3 fix iterations are exhausted
 
         **If archive still fails after 3 fix iterations**, report the remaining validation errors and stop. Do not proceed with an unarchived change.
@@ -431,8 +410,9 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
     - Commit using conventional commit format from the scanned project rules §5.1
     - Push to the remote
     - Update the existing PR (created in Step 6) if `commit-push` detects a pre-existing PR
+    - Print structured output: `PR_NUMBER=<number>` and `PR_URL=<url>`
 
-    If `/commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
+    Read the `PR_NUMBER` from the structured output. If `commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
 **After the archive and push complete, continue to Step 11.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
@@ -442,11 +422,7 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
 **Purpose:** Set the final, accurate PR title and description reflecting what was actually implemented.
 
-Invoke the `update-pr` skill to update the PR. This skill scans project rules for conventions and the PR template, synthesizes both from the delta between the branch and target, and applies changes via `gh api`:
-
-```
-update-pr
-```
+Invoke the `update-pr` skill to update the PR. This skill scans project rules for conventions and the PR template, synthesizes both from the delta between the branch and target, and applies changes via `gh api`.
 
 The `update-pr` skill will:
 - Gather the actual changes made (`git diff main...HEAD --stat`, `git diff main...HEAD --name-only`)
