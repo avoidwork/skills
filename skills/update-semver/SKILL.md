@@ -59,10 +59,11 @@ Collect commit messages between the target tag and HEAD:
 
 ```bash
 if [ -n "$TARGET_TAG" ]; then
-  git log --pretty=format:"%s" "${TARGET_TAG}..HEAD"
+  COMMITS=$(git log --pretty=format:"%s" "${TARGET_TAG}..HEAD")
 else
-  git log --pretty=format:"%s" --max-count=50
+  COMMITS=$(git log --pretty=format:"%s" --max-count=50)
 fi
+echo "COMMITS=$COMMITS"
 ```
 
 ## Step 5: Decide the Bump

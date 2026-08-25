@@ -116,6 +116,12 @@ Update an existing pull request's title and description following project conven
    - `feat: add cron-based auto-reflection scheduling`
    - `docs: add compliance framework and borderline escalation rules to safety guidelines`
 
+   **Assign the synthesized title:**
+   ```bash
+   DRAFTED_TITLE="<type>: <short description>"
+   echo "DRAFTED_TITLE=$DRAFTED_TITLE"
+   ```
+
 6. **Draft the description**
 
    Synthesize the description from the **complete delta** — all commits and all file changes. Fill out every section of the PR template. Never leave a section blank — use `N/A` if not applicable.

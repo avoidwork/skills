@@ -25,6 +25,19 @@ The issue ID is provided in the command context (the text after `/fix-issue`). *
 
 Strip any non-numeric characters and extract the numeric ID. If no ID was provided in the command, *then* ask the user for it.
 
+```bash
+# Extract issue number from chain context (text after /fix-issue)
+# The chain context is passed via CHAIN_CONTEXT env var or as $1
+ISSUE_NUM="${CHAIN_CONTEXT:-$1}"
+# Strip non-numeric characters (handles #42, issue-42, etc.)
+ISSUE_NUM=$(echo "$ISSUE_NUM" | grep -oE '[0-9]+' | head -1)
+if [ -z "$ISSUE_NUM" ]; then
+  echo "ERROR: No issue number provided. Usage: fix-issue <number>"
+  exit 1
+fi
+echo "ISSUE_NUM=$ISSUE_NUM"
+```
+
 ### Step 2: Fetch Issue Details
 
 Determine the target repository dynamically from the git remote. Never hardcode a repo name:
