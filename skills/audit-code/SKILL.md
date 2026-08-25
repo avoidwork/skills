@@ -177,7 +177,32 @@ For each directory in the queue:
    ```
    create-issue Audit findings for $CURRENT_PHASE: Found N critical, N high, N medium, N low issues. See audit results below for details.
    ```
-   Capture the issue number from the `create-issue` output. The `create-issue` skill prints `ISSUE_NUMBER=<number>` as structured output. Read it from the conversation history — do not attempt to grep a shell variable.
+   Capture the issue number from the `create-issue` output. The `create-issue` skill prints `ISSUE_NUMBER=<number>` as structured output. Read it from the conversation history:
+
+   ```bash
+   # Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
+   ISSUE_NUMBER=$(grep -oE 'ISSUE_NUMBER=[0-9]+' <<< "$CONVERSATION_HISTORY" | tail -1 | cut -d= -f2)
+   if [ -z "$ISSUE_NUMBER" ]; then
+     echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output."
+     exit 1
+   fi
+   echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+   ```
+
+   **Derive `$REPO` from the git remote:**
+
+   ```bash
+   GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+   if echo "$GIT_REMOTE" | grep -q '^git@'; then
+     REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+   elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+     REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+   else
+     echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
+     exit 1
+   fi
+   echo "REPO=$REPO"
+   ```
 
    **After creating the issue (or failing to), continue to Step 6.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
@@ -189,7 +214,6 @@ For each directory in the queue:
    echo -e "$AUDIT_TABLE" > /tmp/audit-table.md
    gh issue edit "$ISSUE_NUMBER" --body-file /tmp/audit-table.md --repo "$REPO"
    ```
-   Derive `$REPO` from the git remote (same pattern as in `scan-issues` Step 1).
 
 7. **Update State.** Mark the directory as completed in the state file:
     ```bash

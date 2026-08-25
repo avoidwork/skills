@@ -170,7 +170,17 @@ Invoke the `create-issue` skill as a chain instruction (text delegation). The is
 
 The title should be concise and descriptive, prefixed with `refactor:` since restructuring is a refactor. Example: `refactor: restructure src/components for better cohesion`
 
-**Capture the issue number** from the `create-issue` output. The `create-issue` skill prints `ISSUE_NUMBER=<number>` as structured output. Read it from the conversation history — do not attempt to grep a shell variable.
+**Capture the issue number** from the `create-issue` output. The `create-issue` skill prints `ISSUE_NUMBER=<number>` as structured output. Read it from the conversation history:
+
+```bash
+# Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
+ISSUE_NUMBER=$(grep -oE 'ISSUE_NUMBER=[0-9]+' <<< "$CONVERSATION_HISTORY" | tail -1 | cut -d= -f2)
+if [ -z "$ISSUE_NUMBER" ]; then
+  echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output."
+  exit 1
+fi
+echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+```
 
 **If create-issue fails:** Log the error, skip Step D2 (body update), and proceed to Step E. Do not abort the phase.
 
