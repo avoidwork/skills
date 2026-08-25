@@ -67,7 +67,7 @@ fi
 
 ## Step 5: Decide the Bump
 
-Analyze the commit messages using **Conventional Commits** semantics. Apply the **highest** bump found:
+Analyze the commit messages using **Conventional Commits** semantics. Apply the **highest** bump found, accounting for reverts:
 
 | Commit prefix | Bump |
 |---|---|
@@ -76,23 +76,62 @@ Analyze the commit messages using **Conventional Commits** semantics. Apply the 
 | `BREAKING CHANGE` or `!` after type/scope | **major** |
 | `perf:` | **minor** (performance improvements are treated as features) |
 | `refactor:`, `chore:`, `docs:`, `style:`, `test:` | **no bump** |
+| `Revert "feat: ..."` | **cancels** the corresponding `feat:` |
+| `Revert "fix: ..."` | **cancels** the corresponding `fix:` |
 
 **Decision rules:**
-- If **any** commit is a breaking change → **major**
-- If **any** commit is a `feat:` or `perf:` → **minor**
-- If only `fix:` (and no feat/breaking) → **patch**
-- If no version-relevant commits but commits exist → **patch** (maintenance release)
-- If no commits at all → **abort** (nothing to release)
+1. Count `feat:` commits and `Revert "feat: ..."` commits. Net features = feat count minus revert count.
+2. Count `fix:` commits and `Revert "fix: ..."` commits. Net fixes = fix count minus revert count.
+3. If net features > 0 → **minor**
+4. If net fixes > 0 (and no net features) → **patch**
+5. If no version-relevant commits but commits exist → **patch** (maintenance release)
+6. If no commits at all → **abort** (nothing to release)
 
-Compute the new version:
-- **major**: increment major, reset minor and patch to 0
-- **minor**: increment minor, reset patch to 0
-- **patch**: increment patch
+Implement the counting and bump decision:
 
-Print the decision:
-```
-Bump: <type> (<reason>)
-Version: <CURRENT_VERSION> → <NEW_VERSION>
+```bash
+# Count commit types (excluding merge commits and reverts)
+FEAT_COUNT=$(echo "$COMMITS" | grep -c "^feat:" || true)
+FIX_COUNT=$(echo "$COMMITS" | grep -c "^fix:" || true)
+PERF_COUNT=$(echo "$COMMITS" | grep -c "^perf:" || true)
+BREAKING_COUNT=$(echo "$COMMITS" | grep -cE "(BREAKING CHANGE|!)" || true)
+REVERT_FEAT_COUNT=$(echo "$COMMITS" | grep -cE '^Revert "feat:' || true)
+REVERT_FIX_COUNT=$(echo "$COMMITS" | grep -cE '^Revert "fix:' || true)
+
+# Net counts after reverts
+NET_FEAT=$((FEAT_COUNT - REVERT_FEAT_COUNT))
+NET_FIX=$((FIX_COUNT - REVERT_FIX_COUNT))
+
+# Determine bump
+if [ "$BREAKING_COUNT" -gt 0 ]; then
+  BUMP="major"
+  REASON="$BREAKING_COUNT breaking change(s)"
+elif [ "$NET_FEAT" -gt 0 ] || [ "$PERF_COUNT" -gt 0 ]; then
+  BUMP="minor"
+  REASON="$NET_FEAT unreverted feat(s)"
+elif [ "$NET_FIX" -gt 0 ]; then
+  BUMP="patch"
+  REASON="$NET_FIX unreverted fix(es)"
+elif [ -n "$COMMITS" ]; then
+  BUMP="patch"
+  REASON="no version-relevant commits ($COMMITS | wc -l) commits"
+else
+  echo "No commits to release. Aborting."
+  exit 1
+fi
+
+# Compute new version
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+case "$BUMP" in
+  major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
+  minor) NEW_VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
+  patch) NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+esac
+
+echo "Bump: $BUMP ($REASON)"
+echo "Version: $CURRENT_VERSION → $NEW_VERSION"
+echo "NEW_VERSION=$NEW_VERSION"
+echo "BUMP=$BUMP"
 ```
 
 ## Step 6: Update package.json
