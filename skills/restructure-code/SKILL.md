@@ -195,6 +195,10 @@ Once the issue is created, replace the dummy body with the full restructuring an
 ```bash
 BODY_FILE=$(mktemp)
 
+# Set up guaranteed cleanup for BODY_FILE
+BODY_FILE_CLEANUP="rm -f \"$BODY_FILE\""
+trap "$BODY_FILE_CLEANUP" EXIT
+
 # Build the full analysis body — use heredoc to preserve formatting
 cat > "$BODY_FILE" << BODYEOF
 ## Restructure Analysis: $DIRECTORY_NAME
