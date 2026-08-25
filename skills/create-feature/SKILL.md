@@ -127,7 +127,7 @@ Write the proposal prompt to a file named `${SESSION_ID}-feature-prompt.md` (use
 Parse the change name from the proposal prompt in Step 2. This is the kebab-case identifier that will be used for the OpenSpec change directory.
 
 ```bash
-CHANGE_NAME=$(grep -oP '(?<=CHANGE_NAME: )\S+' "${SESSION_ID}-feature-prompt.md" | head -1)
+CHANGE_NAME=$(grep -o 'CHANGE_NAME: .*' "${SESSION_ID}-feature-prompt.md" | sed 's/^CHANGE_NAME: //' | sed 's/ *$//' | head -1)
 if [ -z "$CHANGE_NAME" ]; then
   CHANGE_NAME=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 fi

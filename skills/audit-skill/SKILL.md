@@ -183,7 +183,7 @@ Check usage of optional directories:
 5. **Validate file references** — check that referenced files exist:
    ```bash
    # Extract file paths from markdown links and code references
-   grep -oP '\[.*?\]\(([^)]+)\)' "$SKILL_PATH/SKILL.md" | grep -oP '(?<=\()\K[^)]+' | while read ref; do
+   grep -oE '\[[^]]*\]\([^)]*\)' "$SKILL_PATH/SKILL.md" | sed 's/.*(\([^)]*\))/\1/' | while read ref; do
      if [ ! -f "$SKILL_PATH/$ref" ]; then
        echo "BROKEN: $ref"
      fi
