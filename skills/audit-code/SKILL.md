@@ -204,6 +204,20 @@ For each directory in the queue:
    echo "REPO=$REPO"
    ```
 
+   **Capture `ISSUE_NUMBER` from the create-issue output:**
+
+   ```bash
+   # Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
+   # The chained skill prints lines like: ISSUE_NUMBER=42
+   ISSUE_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^ISSUE_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+   if [ -z "$ISSUE_NUMBER" ]; then
+     echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output. Conversation history:"
+     echo "$CONVERSATION_HISTORY" | tail -20
+     exit 1
+   fi
+   echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+   ```
+
    **After creating the issue (or failing to), continue to Step 6.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
 6. **Update Issue Body.** Append a structured audit table to the issue:

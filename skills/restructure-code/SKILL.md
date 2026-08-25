@@ -174,9 +174,11 @@ The title should be concise and descriptive, prefixed with `refactor:` since res
 
 ```bash
 # Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
-ISSUE_NUMBER=$(grep -oE 'ISSUE_NUMBER=[0-9]+' <<< "$CONVERSATION_HISTORY" | tail -1 | cut -d= -f2)
+# The chained skill prints lines like: ISSUE_NUMBER=42
+ISSUE_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^ISSUE_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
 if [ -z "$ISSUE_NUMBER" ]; then
-  echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output."
+  echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output. Conversation history:"
+  echo "$CONVERSATION_HISTORY" | tail -20
   exit 1
 fi
 echo "ISSUE_NUMBER=$ISSUE_NUMBER"

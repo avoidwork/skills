@@ -199,6 +199,21 @@ If `SKIP_OPENSPEC` was set in Step 6, include `SKIP_OPENSPEC=true` in the chain 
 
 **Read the `PR_NUMBER` from the structured output printed by `create-feature`.** Do not attempt to grep a shell variable — the value is in the conversation history.
 
+Add a reusable capture pattern to extract `PR_NUMBER` from the conversation history after `create-feature` completes:
+
+```bash
+# Capture PR_NUMBER from the conversation history (last occurrence wins)
+# The chained skill prints lines like: PR_NUMBER=42 or PR_URL=https://...
+# Use grep to find lines matching the pattern, take the last one
+PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+if [ -z "$PR_NUMBER" ]; then
+  echo "ERROR: Could not capture PR_NUMBER from create-feature output. Conversation history:"
+  echo "$CONVERSATION_HISTORY" | tail -20
+  exit 1
+fi
+echo "PR_NUMBER=$PR_NUMBER"
+```
+
 **Do NOT create todo items in this skill.** Todo management is the sole responsibility of `create-feature`.
 
 **If create-feature fails:** Log the error, skip Step 8 (commenting), and report the failure in the final summary. Do not attempt to recover.
