@@ -97,7 +97,7 @@ COMMIT_TYPE="feat"
 SLUG="no-changes"
 if [ -n "$CHANGED_FILES" ]; then
   # Priority 2: Check for src/<module>/ or tests/<module>/ pattern
-  SLUG=$(echo "$CHANGED_FILES" | grep -oP '(?:src|tests)/\K[^/]+' | head -1)
+  SLUG=$(echo "$CHANGED_FILES" | grep -oE '(src|tests)/[^/]+' | sed 's/.*\///' | head -1)
 
   # Priority 3: Fall back to first file basename
   if [ -z "$SLUG" ]; then
