@@ -272,6 +272,10 @@ fi
 ```bash
 BODY_FILE=$(mktemp)
 
+# Set up guaranteed cleanup for BODY_FILE
+BODY_FILE_CLEANUP="rm -f \"$BODY_FILE\""
+trap "$BODY_FILE_CLEANUP" EXIT
+
 cat > "$BODY_FILE" << BODYEOF
 $(echo "$FULL_TEMPLATE_BODY" | sed "s|<SYNTHESIZED_TITLE>|$SYNTHESIZED_TITLE|g")
 BODYEOF

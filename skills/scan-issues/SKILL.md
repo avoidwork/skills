@@ -58,6 +58,9 @@ Create a dedicated directory for worktrees if it doesn't exist:
 ```bash
 WORKTREES_DIR=".worktrees"
 mkdir -p "$WORKTREES_DIR"
+
+# Set up guaranteed cleanup of .worktrees/ on exit (success, failure, or interruption)
+trap 'rm -rf "$WORKTREES_DIR"' EXIT
 ```
 
 ### 5. Process Issues Sequentially

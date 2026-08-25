@@ -245,6 +245,10 @@ done
 ```bash
 BODY_FILE=$(mktemp)
 
+# Set up guaranteed cleanup for BODY_FILE
+BODY_FILE_CLEANUP="rm -f \"$BODY_FILE\""
+trap "$BODY_FILE_CLEANUP" EXIT
+
 # Capture the commit subject and changed files for substitution
 COMMIT_SUBJECT=$(git log -1 --oneline | sed 's/^[a-f0-9]* //')
 CHANGED_FILES=$(git diff --name-only HEAD~1 | head -5 | tr '\n' ', ' | sed 's/,$//')

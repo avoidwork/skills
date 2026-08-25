@@ -212,6 +212,10 @@ For each directory in the queue:
    # Build table from findings
    # ... (populate from audit results)
    echo -e "$AUDIT_TABLE" > /tmp/audit-table.md
+
+   # Set up guaranteed cleanup for audit table
+   trap 'rm -f /tmp/audit-table.md' EXIT
+
    gh issue edit "$ISSUE_NUMBER" --body-file /tmp/audit-table.md --repo "$REPO"
 
    # Verify the body was updated successfully

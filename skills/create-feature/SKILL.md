@@ -90,6 +90,12 @@ echo "SESSION_ID=$SESSION_ID"
 
 **Where to store temp files:** The agent running this skill decides where to place temp files. Use example names like `${SESSION_ID}-feature-goals.md`, `${SESSION_ID}-feature-prompt.md`, `${SESSION_ID}-audit-results.md`, and `${SESSION_ID}-pr-number.txt`. The agent may place them in `tmp/`, `state/`, or any other directory that fits the project's conventions.
 
+**Set up guaranteed cleanup:** Register a trap so temp files are removed regardless of how the skill exits (success, failure, interruption):
+
+```bash
+trap 'rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" "${SESSION_ID}-test-patterns.md"' EXIT
+```
+
 ---
 
 ## Step 1: Synthesize Detailed Goals
