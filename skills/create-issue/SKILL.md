@@ -282,7 +282,7 @@ ISSUE_URL=$(gh issue create \
   --label "$LABEL" \
   $GH_REPO_FLAG)
 
-ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '/issues/\K\d+')
+ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '/issues/[0-9]+' | grep -oE '[0-9]+$')
 
 rm -f "$BODY_FILE"
 ```
