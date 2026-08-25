@@ -131,6 +131,14 @@ Only **one PR can be open at a time**. The `create-feature` → `commit-push` pi
 - Set it to auto-merge if the repo supports it:
   ```bash
   gh pr merge "$PR_NUMBER" --auto --merge --repo "$REPO"
+
+  # Verify auto-merge was enabled successfully
+  AUTO_MERGE=$(gh pr view "$PR_NUMBER" --json autoMerge --jq '.enabled' --repo "$REPO" 2>/dev/null || true)
+  if [ "$AUTO_MERGE" != "true" ]; then
+    echo "WARNING: Auto-merge may not be enabled for PR #$PR_NUMBER (state: $AUTO_MERGE)."
+  else
+    echo "Auto-merge verified for PR #$PR_NUMBER."
+  fi
   ```
 - If auto-merge is not available or fails, note it in the report but do not block on it.
 

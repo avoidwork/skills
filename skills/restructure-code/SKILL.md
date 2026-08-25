@@ -233,6 +233,14 @@ if [ "$ISSUE_NUMBER" != "unknown" ]; then
   gh issue edit "$ISSUE_NUMBER" --body-file "$BODY_FILE" $GH_REPO_OPT 2>&1
   if [ $? -ne 0 ]; then
     echo "WARNING: Failed to update issue body. Issue $ISSUE_NUMBER exists but body was not updated."
+  else
+    # Verify the body was updated successfully
+    VERIFY_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' $GH_REPO_OPT 2>/dev/null || true)
+    if ! echo "$VERIFY_BODY" | grep -q "Restructure Analysis: $DIRECTORY_NAME"; then
+      echo "WARNING: Failed to verify restructure analysis was written to issue #$ISSUE_NUMBER."
+    else
+      echo "Restructure analysis verified on issue #$ISSUE_NUMBER."
+    fi
   fi
 fi
 

@@ -284,6 +284,15 @@ ISSUE_URL=$(gh issue create \
 
 ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '/issues/[0-9]+' | grep -oE '[0-9]+$')
 
+# Verify the issue was created successfully and is open
+ISSUE_STATE=$(gh issue view "$ISSUE_NUMBER" --json state --jq '.state' $GH_REPO_FLAG 2>/dev/null || true)
+if [ "$ISSUE_STATE" != "OPEN" ]; then
+  echo "ERROR: Issue #$ISSUE_NUMBER was created but state is '$ISSUE_STATE' (expected OPEN). Aborting."
+  rm -f "$BODY_FILE"
+  exit 1
+fi
+echo "Issue #$ISSUE_NUMBER verified as OPEN."
+
 rm -f "$BODY_FILE"
 ```
 

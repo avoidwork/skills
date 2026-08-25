@@ -99,6 +99,14 @@ Before any work begins, mark the issue as being worked on:
 
 ```bash
 gh issue edit "$ISSUE_NUM" --add-label "in progress" --repo "$REPO"
+
+# Verify the label was added successfully
+LABEL_CHECK=$(gh issue view "$ISSUE_NUM" --json labels --jq '.[].name' --repo "$REPO" 2>/dev/null || true)
+if ! echo "$LABEL_CHECK" | grep -q '"in progress"'; then
+  echo "ERROR: Failed to add 'in progress' label to issue #$ISSUE_NUM."
+  exit 1
+fi
+echo "Label 'in progress' verified on issue #$ISSUE_NUM."
 ```
 
 This ensures the issue won't be picked up again by `scan-issues` and clearly marks it as being worked on. (Note: `--add-label` is idempotent — adding an already-present label is a no-op.)
@@ -157,6 +165,12 @@ Use the `PR_NUMBER` from the structured output printed by `create-feature` in St
 
 ```bash
 gh issue comment "$ISSUE_NUM" --repo "$REPO" --body "Fixed in #${PR_NUMBER}."
+
+# Verify the comment was posted successfully
+COMMENT_CHECK=$(gh issue view "$ISSUE_NUM" --json comments --jq '.comments[-1].body' --repo "$REPO" 2>/dev/null || true)
+if ! echo "$COMMENT_CHECK" | grep -q "Fixed in #${PR_NUMBER}"; then
+  echo "WARNING: Failed to verify comment on issue #$ISSUE_NUM."
+fi
 ```
 
 If the comment fails, note it in the final report but do not stop.
