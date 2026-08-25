@@ -197,6 +197,18 @@ Invoke the `commit-push` skill.
 
 **After `commit-push` completes, continue to Step 9.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
+Add a reusable capture pattern to extract `PR_NUMBER` from the conversation history after `commit-push` completes:
+
+```bash
+# Capture PR_NUMBER from the conversation history (last occurrence wins)
+PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+if [ -z "$PR_NUMBER" ]; then
+  echo "ERROR: Could not capture PR_NUMBER from commit-push output."
+  exit 1
+fi
+echo "PR_NUMBER=$PR_NUMBER"
+```
+
 ## Step 9: Enable Auto-Merge
 
 After the PR is created, enable auto-merge on it with **squash** merge. Extract the PR number from the `commit-push` output (look for `PR_NUMBER=<number>` printed as structured output), then enable auto-merge:

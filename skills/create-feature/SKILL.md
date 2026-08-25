@@ -245,6 +245,21 @@ The `commit-push` skill will:
 
 Read the `PR_NUMBER` from the structured output printed by `commit-push`. Do not attempt to grep a shell variable — the value is in the conversation history.
 
+Add a reusable capture pattern to extract `PR_NUMBER` from the conversation history after `commit-push` completes:
+
+```bash
+# Capture PR_NUMBER from the conversation history (last occurrence wins)
+# The chained skill prints lines like: PR_NUMBER=42 or PR_URL=https://...
+# Use grep to find lines matching the pattern, take the last one
+PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+if [ -z "$PR_NUMBER" ]; then
+  echo "ERROR: Could not capture PR_NUMBER from commit-push output. Conversation history:"
+  echo "$CONVERSATION_HISTORY" | tail -20
+  exit 1
+fi
+echo "PR_NUMBER=$PR_NUMBER"
+```
+
 Write it to a file for later use in Step 12:
 
 ```bash
@@ -352,6 +367,18 @@ This will:
 - Print structured output: `PR_NUMBER=<number>` and `PR_URL=<url>`
 
 Read the `PR_NUMBER` from the structured output. If `commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
+
+Add a reusable capture pattern to extract `PR_NUMBER` from the conversation history after `commit-push` completes:
+
+```bash
+# Capture PR_NUMBER from the conversation history (last occurrence wins)
+PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+if [ -z "$PR_NUMBER" ]; then
+  echo "ERROR: Could not capture PR_NUMBER from commit-push output."
+  exit 1
+fi
+echo "PR_NUMBER=$PR_NUMBER"
+```
 
 **After `/commit-push` completes, continue to Step 8.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
@@ -465,6 +492,18 @@ Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an 
 
     Read the `PR_NUMBER` from the structured output. If `commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
+    Add a reusable capture pattern to extract `PR_NUMBER` from the conversation history after `commit-push` completes:
+
+    ```bash
+    # Capture PR_NUMBER from the conversation history (last occurrence wins)
+    PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+    if [ -z "$PR_NUMBER" ]; then
+      echo "ERROR: Could not capture PR_NUMBER from commit-push output."
+      exit 1
+    fi
+    echo "PR_NUMBER=$PR_NUMBER"
+    ```
+
 **After the archive and push complete, continue to Step 11.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
 ---
@@ -482,6 +521,19 @@ The `update-pr` skill will:
 - Update the PR using `gh api`
 
 After `update-pr` completes, verify the PR was updated correctly by checking the PR on GitHub.
+
+Add a reusable capture pattern to confirm `PR_NUMBER` is still available from the conversation history after `update-pr` completes:
+
+```bash
+# PR_NUMBER was already captured from earlier commit-push steps.
+# Re-capture to confirm it's still available after update-pr.
+PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+if [ -z "$PR_NUMBER" ]; then
+  echo "ERROR: PR_NUMBER not found in conversation history after update-pr."
+  exit 1
+fi
+echo "PR_NUMBER=$PR_NUMBER (verified after update-pr)"
+```
 
 **After verification, continue to Step 12.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
