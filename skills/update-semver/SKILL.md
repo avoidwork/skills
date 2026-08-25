@@ -204,6 +204,14 @@ After the PR is created, enable auto-merge on it with **squash** merge. Extract 
 ```bash
 gh pr merge "$PR_NUMBER" --auto --squash
 echo "Auto-merge: ENABLED (squash)"
+
+# Verify auto-merge was enabled successfully
+AUTO_MERGE=$(gh pr view "$PR_NUMBER" --json autoMerge --jq '.enabled' 2>/dev/null || true)
+if [ "$AUTO_MERGE" != "true" ]; then
+  echo "WARNING: Auto-merge may not be enabled for PR #$PR_NUMBER (state: $AUTO_MERGE)."
+else
+  echo "Auto-merge verified for PR #$PR_NUMBER."
+fi
 ```
 
 If auto-merge fails (e.g., repo settings don't support it), report the error and advise manual merge.

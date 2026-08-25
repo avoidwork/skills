@@ -213,6 +213,14 @@ For each directory in the queue:
    # ... (populate from audit results)
    echo -e "$AUDIT_TABLE" > /tmp/audit-table.md
    gh issue edit "$ISSUE_NUMBER" --body-file /tmp/audit-table.md --repo "$REPO"
+
+   # Verify the body was updated successfully
+   VERIFY_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' --repo "$REPO" 2>/dev/null || true)
+   if ! echo "$VERIFY_BODY" | grep -q "File.*Type.*Severity.*Summary"; then
+     echo "WARNING: Failed to verify audit table was written to issue #$ISSUE_NUMBER."
+   else
+     echo "Audit table verified on issue #$ISSUE_NUMBER."
+   fi
    ```
 
 7. **Update State.** Mark the directory as completed in the state file:

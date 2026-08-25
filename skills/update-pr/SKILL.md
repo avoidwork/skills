@@ -145,6 +145,14 @@ Update an existing pull request's title and description following project conven
     gh api "repos/$GH_REPO/pulls/$PR_NUMBER" \
       -f title="$DRAFTED_TITLE" \
       -f body="$DRAFTED_BODY"
+
+    # Verify the update succeeded by reading back the title
+    VERIFY_TITLE=$(gh pr view "$PR_NUMBER" --json title --jq '.title' --repo "$GH_REPO" 2>/dev/null || true)
+    if [ "$VERIFY_TITLE" != "$DRAFTED_TITLE" ]; then
+      echo "ERROR: PR title update verification failed. Expected '$DRAFTED_TITLE', got '$VERIFY_TITLE'."
+      exit 1
+    fi
+    echo "PR title verified: $VERIFY_TITLE"
     ```
 
     **Handle API errors:** If the API call returns a non-200 status, report the error and stop. Common errors:
