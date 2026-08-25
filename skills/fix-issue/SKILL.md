@@ -123,7 +123,51 @@ Inspect the labels for a categorization tag. Priority order:
 
 If no categorization label is found, **default to `bug`**.
 
-### Step 6: Run create-feature
+### Step 6: Check for OpenSpec / Package Manager / Build Process
+
+Before invoking `create-feature`, verify whether the project has the infrastructure that `create-feature` depends on:
+
+```bash
+# Check for package.json (Node.js project)
+HAS_PACKAGE_JSON=false
+if [ -f "package.json" ]; then
+  HAS_PACKAGE_JSON=true
+fi
+
+# Check for openspec/ directory
+HAS_OPENSPEC=false
+if [ -d "openspec" ]; then
+  HAS_OPENSPEC=true
+fi
+
+# Check for build/start scripts in package.json
+HAS_BUILD_SCRIPT=false
+if [ "$HAS_PACKAGE_JSON" = true ]; then
+  BUILD_SCRIPTS=$(node -e "console.log(Object.keys(require('./package.json').scripts || {}))" 2>/dev/null)
+  if echo "$BUILD_SCRIPTS" | grep -qE '"(start|build|test|lint|coverage)"'; then
+    HAS_BUILD_SCRIPT=true
+  fi
+fi
+
+echo "HAS_PACKAGE_JSON=$HAS_PACKAGE_JSON"
+echo "HAS_OPENSPEC=$HAS_OPENSPEC"
+echo "HAS_BUILD_SCRIPT=$HAS_BUILD_SCRIPT"
+```
+
+**If all three are absent** (`HAS_PACKAGE_JSON=false`, `HAS_OPENSPEC=false`, `HAS_BUILD_SCRIPT=false`), the project has no package manager, no OpenSpec workflow, and no build process. In this case, invoke `create-feature` with a `SKIP_OPENSPEC` directive that tells it to skip all OpenSpec-related steps (proposal, spec generation, task breakdown, archival) and proceed directly to:
+
+1. Create the feature branch
+2. Implement the fix inline
+3. Run tests only if a `test` script exists in package.json (even if no build scripts, a test script may exist)
+4. Commit and push
+5. Create the PR
+6. Post audit comment on the issue
+
+Pass `SKIP_OPENSPEC=true` in the chain instruction to `create-feature`.
+
+**If any of the three are present**, proceed with the normal `create-feature` invocation (full pipeline with OpenSpec).
+
+### Step 7: Run create-feature
 
 **This is not a description. Execute it.**
 
@@ -137,7 +181,9 @@ Map the categorized type to a conventional commit prefix for the branch name:
 | `docs`   | `docs`      |
 | `test`   | `test`      |
 
-Invoke the `create-feature` skill as a chain instruction (text delegation), passing the branch type via `BRANCH_TYPE`. Keep the instruction under 300 characters.
+Invoke the `create-feature` skill as a chain instruction (text delegation), passing the branch type via `BRANCH_TYPE` and the `SKIP_OPENSPEC` flag if applicable. Keep the instruction under 300 characters.
+
+If `SKIP_OPENSPEC` was set in Step 6, include `SKIP_OPENSPEC=true` in the chain instruction. Otherwise, omit it.
 
 **Wait for the invocation to complete.** Do not proceed to Step 7 until the feature implementation, testing, PR creation, and archival are all done. The `create-feature` skill handles:
 
@@ -155,11 +201,11 @@ Invoke the `create-feature` skill as a chain instruction (text delegation), pass
 
 **Do NOT create todo items in this skill.** Todo management is the sole responsibility of `create-feature`.
 
-**If create-feature fails:** Log the error, skip Step 7 (commenting), and report the failure in the final summary. Do not attempt to recover.
+**If create-feature fails:** Log the error, skip Step 8 (commenting), and report the failure in the final summary. Do not attempt to recover.
 
-### Step 7: Comment on Issue
+### Step 8: Comment on Issue
 
-**Skip this step if create-feature failed.** If create-feature failed (per Step 6 error handling), do not attempt to comment — the PR was never created.
+**Skip this step if create-feature failed.** If create-feature failed (per Step 7 error handling), do not attempt to comment — the PR was never created.
 
 Use the `PR_NUMBER` from the structured output printed by `create-feature` in Step 6. Do not attempt to extract it from a shell variable — it is in the conversation history.
 
