@@ -253,6 +253,49 @@ If `commit-push` fails, report the error and stop. Do not attempt to recover wit
 
 ---
 
+## Step 6.5: Discover Related Tests
+
+Before implementing, read existing tests to understand the project's testing conventions, patterns, and structure. This ensures new tests (if any are required by the tasks) follow the established style.
+
+**Identify source files from the spec:** Look at the tasks in `tasks.md`, the design document, and spec deltas to determine which source files will be created or modified.
+
+**Find related tests using these rules:**
+
+1. **Nested test directory** (most common): If the source file lives in `src/foo/bar.js`, look for `tests/unit/foo/bar.test.js` or `tests/unit/bar.test.test.js`. Mirror the directory structure.
+2. **Flat test directory**: If tests live in a flat `tests/` or `tests/unit/` directory with no nesting, find tests by filename matching — e.g., `src/foo/bar.js` → `tests/bar.test.js` or `tests/bar.test.test.js`.
+3. **Sibling test file**: Some projects place test files alongside source — e.g., `src/foo/bar.js` with `src/foo/bar.test.js` or `src/foo/bar.spec.js`.
+4. **Module-level test**: If no exact match exists, look for a test file that covers the parent module or directory — e.g., `tests/unit/foo.test.js` covering everything in `src/foo/`.
+
+**For each source file being created or modified:**
+
+```bash
+# Example: find related tests for src/scheduler/runner.js
+# 1. Check nested test directory
+ls tests/unit/scheduler/runner.test.js 2>/dev/null && echo "found: tests/unit/scheduler/runner.test.js"
+
+# 2. Check flat test directory by name
+ls tests/runner.test.js 2>/dev/null && echo "found: tests/runner.test.js"
+
+# 3. Check sibling test file
+ls src/scheduler/runner.test.js 2>/dev/null && echo "found: src/scheduler/runner.test.js"
+
+# 4. Check parent module test
+ls tests/unit/scheduler.test.js 2>/dev/null && echo "found: tests/unit/scheduler.test.js"
+```
+
+Read every test file you discover. Pay attention to:
+- **Assertion style** — `assert`, `chai`, `node --test`, custom helpers
+- **Mocking patterns** — how dependencies, external services, and config are mocked
+- **Test structure** — `describe`/`it` nesting, fixture setup, teardown
+- **Naming conventions** — test file and test case naming
+- **Common helpers** — shared test utilities, factories, or fixtures
+
+Write a brief summary of the patterns you found to `${SESSION_ID}-test-patterns.md` (use an example name — the agent decides where to place it). This becomes context for Step 7 when implementing tests.
+
+If no related tests exist, note "No existing tests found — follow project conventions from AGENTS.md §3.5" and proceed.
+
+---
+
 ## Step 7: Apply Tasks (via openspec-apply-change)
 
 Invoke the `openspec-apply-change` skill to implement all tasks from `tasks.md`.
@@ -471,7 +514,7 @@ Coverage: maintained
 Remove the intermediate memory files — they served their purpose and won't be needed again:
 
 ```bash
-rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt"
+rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" "${SESSION_ID}-test-patterns.md"
 ```
 
 Verify cleanup:
