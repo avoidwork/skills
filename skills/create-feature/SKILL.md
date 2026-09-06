@@ -1,8 +1,8 @@
 ---
 name: create-feature
-description: Orchestrates a complete feature lifecycle: receive goals, synthesize specs, propose via OpenSpec, commit specs to PR, apply tasks, commit implementation, archive, update PR, and post audit results.
+description: Orchestrates a complete feature lifecycle: receive goals, synthesize specs, propose via OpenSpec, commit specs to PR, apply tasks, commit implementation, archive, update PR, and post audit results. Creates an isolated git worktree for each run.
 license: BSD 3-Clause
-compatibility: Requires Node.js 24+, npm, git with remote access, gh CLI, openspec CLI, and a project root with openspec/ directory. When invoked as a sub-agent, requires a 30–60 minute timeout — the full pipeline (spec → PR → implement → archive → update PR) can take that long.
+compatibility: Requires Node.js 24+, npm, git with remote access, gh CLI, openspec CLI, and a project root with openspec/ directory. Requires git worktree support. When invoked as a sub-agent, requires a 30–60 minute timeout — the full pipeline (spec → PR → implement → archive → update PR) can take that long.
 metadata:
   agent: coding
 ---
@@ -42,15 +42,23 @@ The user provides a list of goals/features in any format (natural language, JSON
 
 ## Step 0: Ensure Clean State
 
-**Determine the target repository dynamically from the git remote (needed for later gh commands):**
+**Capture the project root and repository info (needed for worktree paths and gh commands):**
 
 ```bash
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
 GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
 if echo "$GIT_REMOTE" | grep -q '^git@'; then
   GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
 elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
   GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
 fi
+```
+
+**Create a dedicated worktree directory inside the repo root (absolute path prevents nesting issues):**
+
+```bash
+WORKTREES_DIR="${PROJECT_ROOT}/.worktrees"
+mkdir -p "$WORKTREES_DIR"
 ```
 
 ```bash
@@ -90,10 +98,41 @@ echo "SESSION_ID=$SESSION_ID"
 
 **Where to store temp files:** The agent running this skill decides where to place temp files. Use example names like `${SESSION_ID}-feature-goals.md`, `${SESSION_ID}-feature-prompt.md`, `${SESSION_ID}-audit-results.md`, and `${SESSION_ID}-pr-number.txt`. The agent may place them in `tmp/`, `state/`, or any other directory that fits the project's conventions.
 
-**Set up guaranteed cleanup:** Register a trap so temp files are removed regardless of how the skill exits (success, failure, interruption):
+**Set up guaranteed cleanup:** Register a single trap so all temp files and the worktree are removed regardless of how the skill exits (success, failure, interruption). The cleanup function is defined later in Step 0.75 after the worktree path is known — the trap at Step 0.5 is a placeholder that gets overwritten.
+
+---
+
+## Step 0.75: Create Isolated Worktree
+
+Create a dedicated git worktree so all feature work is isolated from the main working tree. Using absolute paths (`PROJECT_ROOT`) prevents the worktree from being nested inside another worktree.
 
 ```bash
-trap 'rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" "${SESSION_ID}-test-patterns.md"' EXIT
+WORKTREE_PATH="${WORKTREES_DIR}/${SESSION_ID}"
+
+# Create the worktree from main (--detach since main is already checked out)
+git worktree add --detach "$WORKTREE_PATH" main
+
+# Verify worktree creation succeeded
+if [ ! -d "$WORKTREE_PATH" ]; then
+  echo "ERROR: Worktree creation failed at $WORKTREE_PATH."
+  exit 1
+fi
+
+# Record the original directory so we can return for cleanup
+ORIGINAL_DIR=$(pwd)
+echo "WORKTREE_PATH=$WORKTREE_PATH"
+```
+
+**Change into the worktree** — all subsequent steps run from here:
+
+```bash
+cd "$WORKTREE_PATH"
+```
+
+**Set up combined cleanup trap** — runs on exit regardless of success or failure. This single trap replaces any earlier placeholder traps:
+
+```bash
+trap 'cd "$ORIGINAL_DIR" 2>/dev/null; git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true; rm -rf "$WORKTREE_PATH" 2>/dev/null; rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" "${SESSION_ID}-test-patterns.md"' EXIT
 ```
 
 ---
@@ -569,18 +608,12 @@ Coverage: maintained
 
 ## Step 14: Cleanup
 
-Remove the intermediate memory files — they served their purpose and won't be needed again:
+Cleanup is handled automatically by the trap registered in Step 0.75. The trap removes the worktree and all temp files on exit regardless of success or failure. No manual cleanup is needed.
 
+Verify the worktree was removed:
 ```bash
-rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" "${SESSION_ID}-test-patterns.md"
+ls "$WORKTREE_PATH" 2>&1 || echo "Worktree cleaned up successfully."
 ```
-
-Verify cleanup:
-```bash
-ls "${SESSION_ID}-feature-*.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" 2>&1
-```
-
-If any files remain, report them and remove manually.
 
 ---
 
