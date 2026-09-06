@@ -36,24 +36,37 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Verify Docker registry authentication
-docker info 2>&1 | grep -q "Login Status"
-if [ $? -ne 0 ]; then
-  echo "WARNING: Docker registry authentication status unclear. Ensure you're logged in."
+# Verify Docker registry authentication — check if config.json exists with auths
+if [ ! -f "$HOME/.docker/config.json" ] || ! grep -q '"auths"' "$HOME/.docker/config.json" 2>/dev/null; then
+  echo "WARNING: Docker registry authentication not confirmed. Run 'docker login' if push fails."
 fi
 
 # Check disk space (Docker builds need ~2GB free)
-AVAILABLE_SPACE=$(df -m . | tail -1 | awk '{print $4}')
-if [ "$AVAILABLE_SPACE" -lt 2048 ]; then
+AVAILABLE_SPACE=$(df -P . | tail -1 | awk '{print $4}')
+# Convert from 1K blocks to MB for comparison
+AVAILABLE_SPACE_MB=$((AVAILABLE_SPACE / 1024))
+if [ "$AVAILABLE_SPACE_MB" -lt 2048 ]; then
   echo "WARNING: Less than 2GB disk space available. Build may fail."
 fi
 
 # Check if the image already exists in the registry
 # Note: docker manifest inspect requires registry access; may fail if registry is unreachable
-docker manifest inspect "${DOCKER_USER}/madz:${TAG_VERSION}" >/dev/null 2>&1 && echo "EXISTS" || echo "NOT_FOUND"
+if docker manifest inspect "${DOCKER_USER}/madz:${TAG_VERSION}" >/dev/null 2>&1; then
+  echo "Image ${DOCKER_USER}/madz:${TAG_VERSION} already exists in registry. Stopping."
+  echo "Docker image tags are immutable — bump the version and try again."
+  exit 1
+else
+  echo "Image ${DOCKER_USER}/madz:${TAG_VERSION} not found in registry — proceeding."
+fi
+
+# Verify the npm script exists before running
+if ! npm run --list 2>/dev/null | grep -q 'docker:release:all'; then
+  echo "ERROR: npm script 'docker:release:all' not found in package.json."
+  exit 1
+fi
 ```
 
-If the image already exists in the registry, **stop and ask**. Do not proceed — the release was already pushed.
+If the image already exists in the registry, **stop and report** — the release was already pushed. Do not proceed.
 
 Also verify the git tag exists locally (for context, not as the primary check):
 

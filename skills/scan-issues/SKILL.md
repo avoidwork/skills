@@ -28,11 +28,23 @@ if [ -z "$GIT_REMOTE" ]; then
 fi
 
 if echo "$GIT_REMOTE" | grep -q '^git@'; then
-  REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)\.git$/\1/')
+  if [ -z "$REPO" ]; then
+    REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)$/\1/')
+  fi
 elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
-  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)\.git$/\1/')
+  if [ -z "$REPO" ]; then
+    REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)$/\1/')
+  fi
 else
   echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
+  exit 1
+fi
+
+# Validate REPO is non-empty and contains a slash (owner/repo format)
+if [ -z "$REPO" ] || ! echo "$REPO" | grep -q '/'; then
+  echo "ERROR: Parsed repository '$REPO' does not look like 'owner/repo'. Check remote URL."
   exit 1
 fi
 ```
@@ -40,7 +52,7 @@ fi
 ### 2. Scan for Issues
 
 ```bash
-gh issue list --state open --label approved --search "-label:\"in progress\"" --json number,title,url,labels --repo "$REPO"
+gh issue list --state open --label approved --search '-label:"in progress"' --json number,title,url,labels --repo "$REPO"
 ```
 
 This pushes the filtering to the GitHub API — only issues with `approved` but **not** `in progress` are returned. No client-side `jq` filtering needed.
@@ -68,7 +80,7 @@ For each issue in the sorted list:
 
    ```bash
    # Capture PR_NUMBER from the conversation history (last occurrence wins)
-   PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+   PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | sed -n 's/^PR_NUMBER=\([0-9]\{1,\}\)$/\1/p' | tail -1)
    if [ -z "$PR_NUMBER" ]; then
      echo "WARNING: Could not capture PR_NUMBER from fix-issue output. Issue may have been skipped."
    else

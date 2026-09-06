@@ -20,13 +20,26 @@ Check current state and confirm we're not on a branch that will be deleted:
 ```bash
 # Check current branch
 CURRENT_BRANCH=$(git branch --show-current)
+
+# Handle detached HEAD
+if [ -z "$CURRENT_BRANCH" ]; then
+  echo "ERROR: You are in detached HEAD state. Switch to a branch before purging."
+  echo "  git checkout main"
+  exit 1
+fi
+
 echo "Current branch: $CURRENT_BRANCH"
+
+# Warn if not on main — current branch cannot be deleted
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  echo "WARNING: You are on '$CURRENT_BRANCH', not 'main'. The current branch will be skipped."
+fi
 
 # Show branches that will be deleted
 echo ""
 echo "Branches that will be deleted:"
-git branch --format='%(refname:short)' | grep -v '^main$'
-BRANCH_COUNT=$(git branch --format='%(refname:short)' | grep -cv '^main$')
+git branch --format='%(refname:short)' | grep -v '^main$' | grep -v "^${CURRENT_BRANCH}$"
+BRANCH_COUNT=$(git branch --format='%(refname:short)' | grep -v '^main$' | grep -vc "^${CURRENT_BRANCH}$")
 echo ""
 echo "Total: $BRANCH_COUNT branches to delete"
 
@@ -41,9 +54,13 @@ fi
 Delete all branches except `main`:
 
 ```bash
-# Delete all branches except main (safely, one at a time)
-git branch --format='%(refname:short)' | grep -v '^main$' | while read -r branch; do
-  git branch -D "$branch" 2>/dev/null && echo "Deleted: $branch" || echo "Skipped (checkout error): $branch"
+# Delete all branches except main and current (safely, one at a time)
+git branch --format='%(refname:short)' | grep -v '^main$' | grep -v "^${CURRENT_BRANCH}$" | while read -r branch; do
+  if git branch -D "$branch" 2>&1; then
+    echo "Deleted: $branch"
+  else
+    echo "Skipped: $branch (delete failed)"
+  fi
 done
 ```
 
@@ -52,8 +69,8 @@ done
 ## Report
 
 ```bash
-# Count remaining branches (excluding main)
-REMAINING=$(git branch --format='%(refname:short)' | grep -cv '^main$')
+# Count remaining branches (excluding main and current)
+REMAINING=$(git branch --format='%(refname:short)' | grep -v '^main$' | grep -vc "^${CURRENT_BRANCH}$")
 echo ""
 echo "Purge complete."
 echo "Remaining branches: $REMAINING"

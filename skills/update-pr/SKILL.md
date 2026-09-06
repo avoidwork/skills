@@ -32,11 +32,23 @@ Update an existing pull request's title and description following project conven
     # Extract owner/repo from git remote URL — handles both HTTPS and SSH
     GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
     if echo "$GIT_REMOTE" | grep -q '^git@'; then
-      GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+      GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)\.git$/\1/')
+      if [ -z "$GH_REPO" ]; then
+        GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)$/\1/')
+      fi
     elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
-      GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+      GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)\.git$/\1/')
+      if [ -z "$GH_REPO" ]; then
+        GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)$/\1/')
+      fi
     else
       echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
+      exit 1
+    fi
+
+    # Validate GH_REPO is non-empty and contains a slash (owner/repo format)
+    if [ -z "$GH_REPO" ] || ! echo "$GH_REPO" | grep -q '/'; then
+      echo "ERROR: Parsed repository '$GH_REPO' does not look like 'owner/repo'. Check remote URL."
       exit 1
     fi
     ```
@@ -62,7 +74,11 @@ Update an existing pull request's title and description following project conven
 3. **Read the PR template**
 
    ```bash
-   cat .github/PULL_REQUEST_TEMPLATE.md
+   if [ -f ".github/PULL_REQUEST_TEMPLATE.md" ]; then
+     cat .github/PULL_REQUEST_TEMPLATE.md
+   else
+     echo "WARNING: No .github/PULL_REQUEST_TEMPLATE.md found. Using default structure."
+   fi
    ```
 
    If the file doesn't exist, construct a reasonable description with: Description, Type of Change, Testing, Coverage, Checklist.
@@ -142,9 +158,27 @@ Update an existing pull request's title and description following project conven
     **Never use `gh pr edit` — it fails in this repo.** Use the GitHub API instead. Continue using the `$GH_REPO` variable extracted in Step 1:
 
     ```bash
-    gh api "repos/$GH_REPO/pulls/$PR_NUMBER" \
-      -f title="$DRAFTED_TITLE" \
-      -f body="$DRAFTED_BODY"
+    # Build JSON payload with jq to handle multi-line body safely
+    # If jq is unavailable, fall back to temp file approach
+    if command -v jq >/dev/null 2>&1; then
+      PAYLOAD=$(jq -n --arg title "$DRAFTED_TITLE" --arg body "$DRAFTED_BODY" '{title: $title, body: $body}')
+      if ! echo "$PAYLOAD" | gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --input - >/dev/null 2>&1; then
+        echo "ERROR: Failed to update PR #$PR_NUMBER via API."
+        exit 1
+      fi
+    else
+      # Fallback: write body to temp file
+      PR_BODY_FILE=$(mktemp)
+      printf '%s\n' "$DRAFTED_BODY" > "$PR_BODY_FILE"
+      if ! gh api "repos/$GH_REPO/pulls/$PR_NUMBER" \
+        -f title="$DRAFTED_TITLE" \
+        -f body="$(cat "$PR_BODY_FILE")" >/dev/null 2>&1; then
+        echo "ERROR: Failed to update PR #$PR_NUMBER via API."
+        rm -f "$PR_BODY_FILE"
+        exit 1
+      fi
+      rm -f "$PR_BODY_FILE"
+    fi
 
     # Verify the update succeeded by reading back the title
     VERIFY_TITLE=$(gh pr view "$PR_NUMBER" --json title --jq '.title' --repo "$GH_REPO" 2>/dev/null || true)

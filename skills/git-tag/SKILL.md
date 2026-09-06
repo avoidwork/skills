@@ -90,7 +90,13 @@ If no version found yet and `pom.xml` exists:
 
 ```bash
 if [ -z "$TAG_VERSION" ] && [ -f pom.xml ]; then
-  TAG_VERSION=$(grep -m1 '<version>' pom.xml | sed 's|.*<version>\([^<]*\)</version>.*|\1|' | head -1)
+  # Extract project version — skip parent <version> by looking for
+  # <version> directly under <project> (not under <parent>)
+  TAG_VERSION=$(grep -A2 '<project>' pom.xml | grep -m1 '<version>' | sed 's|.*<version>\([^<]*\)</version>.*|\1|')
+  if [ -z "$TAG_VERSION" ]; then
+    # Fallback: first <version> that is NOT inside <parent>...</parent>
+    TAG_VERSION=$(sed -n '/<parent>/,/<\/parent>/!p' pom.xml | grep -m1 '<version>' | sed 's|.*<version>\([^<]*\)</version>.*|\1|')
+  fi
   if [ -n "$TAG_VERSION" ]; then
     echo "TAG_VERSION=$TAG_VERSION"
     VERSION_SOURCE="pom.xml"
@@ -118,13 +124,17 @@ If no version found yet, check Gemfile or gemspec:
 
 ```bash
 if [ -z "$TAG_VERSION" ]; then
-  if [ -f *.gemspec ]; then
-    TAG_VERSION=$(grep -m1 '\.version[[:space:]]*=' *.gemspec | sed 's/.*\.version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/' | head -1)
-    if [ -n "$TAG_VERSION" ]; then
-      echo "TAG_VERSION=$TAG_VERSION"
-      VERSION_SOURCE="*.gemspec"
+  # Use a loop to handle glob safely (avoids issues with zero or multiple matches)
+  for gemspec in *.gemspec; do
+    if [ -f "$gemspec" ]; then
+      TAG_VERSION=$(grep -m1 '\.version[[:space:]]*=' "$gemspec" | sed 's/.*\.version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/' | head -1)
+      if [ -n "$TAG_VERSION" ]; then
+        echo "TAG_VERSION=$TAG_VERSION"
+        VERSION_SOURCE="$gemspec"
+      fi
     fi
-  fi
+    break
+  done
 fi
 ```
 
@@ -157,11 +167,13 @@ git status --porcelain
 
 If there are uncommitted changes, report them to the user and stop. Do not tag a dirty tree.
 
-**Check for detached HEAD:** If `git branch --show-current` returns empty, you're in detached HEAD state. Create a temporary branch first:
+**Check for detached HEAD:** If `git branch --show-current` returns empty, you're in detached HEAD state. Create a temporary branch first, and clean it up after the tag is pushed:
 ```bash
+WAS_DETACHED=false
 if [ -z "$(git branch --show-current)" ]; then
   echo "WARNING: Detached HEAD state. Creating temporary branch for tagging."
-  git checkout -b "tag-temp-$(date +%s)"
+  git checkout -b "tag-temp-$(date -u +%Y%m%d%H%M%S)"
+  WAS_DETACHED=true
 fi
 ```
 
@@ -171,10 +183,10 @@ Find the closest prior tag to use as the delta baseline:
 
 ```bash
 # Try to find previous tag in same minor version series
-# Note: sort -V requires GNU sort; fall back to sort if unavailable
+# Note: sort -V requires GNU sort; fall back to sort -t. -k1,1n -k2,2n -k3,3n if unavailable
 PREV_TAG=$(git tag -l "${TAG_VERSION%.*}.*" 2>/dev/null | sort -V 2>/dev/null | grep -v "^${TAG_VERSION}$" | tail -1)
 if [ -z "$PREV_TAG" ]; then
-  PREV_TAG=$(git tag -l "${TAG_VERSION%.*}.*" 2>/dev/null | sort 2>/dev/null | grep -v "^${TAG_VERSION}$" | tail -1)
+  PREV_TAG=$(git tag -l "${TAG_VERSION%.*}.*" 2>/dev/null | sort -t. -k1,1n -k2,2n -k3,3n 2>/dev/null | grep -v "^${TAG_VERSION}$" | tail -1)
 fi
 if [ -z "$PREV_TAG" ]; then
   PREV_TAG=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || echo "")
@@ -205,7 +217,7 @@ if [ -n "$PREV_TAG" ]; then
 else
   COMMITS=$(git log --pretty=format:"%s" --max-count=20 | grep -v "^Merge ")
 fi
-echo "COMMITS=$COMMITS" | head -c 2000
+echo "COMMITS=$COMMITS" | cut -c1-2000
 ```
 
 ## Step 6: Synthesize the Description
@@ -273,6 +285,15 @@ git push origin "$TAG_VERSION"
 - **Remote not configured:** Suggest adding a remote (`git remote add origin <url>`)
 - **Permission denied:** Check SSH keys or token permissions
 - **Network error:** Retry once, then report
+
+**Clean up temporary branch if we were in detached HEAD:**
+```bash
+if [ "$WAS_DETACHED" = true ]; then
+  TEMP_BRANCH=$(git branch --show-current)
+  git checkout --detach 2>/dev/null
+  git branch -D "$TEMP_BRANCH" 2>/dev/null || true
+fi
+```
 
 ## Step 9: Verify the Push
 
