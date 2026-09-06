@@ -43,7 +43,7 @@ git branch --show-current
 If the output is empty (detached HEAD), create a branch from the current commit:
 
 ```bash
-git checkout -b "detached-fix-$(date +%s)"
+git checkout -b "detached-fix-$(date -u +%s)"
 ```
 
 ## 3. Create & Checkout a Branch
@@ -57,6 +57,16 @@ if echo "$GIT_REMOTE" | grep -q '^git@'; then
 elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
   GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
 fi
+
+if [ -z "$GH_REPO" ]; then
+  echo "ERROR: Could not determine repository from git remote '$GIT_REMOTE'."
+  exit 1
+fi
+
+# Derive the default assignee from the repo owner
+GH_OWNER=$(echo "$GH_REPO" | cut -d/ -f1)
+echo "GH_REPO=$GH_REPO"
+echo "GH_OWNER=$GH_OWNER"
 ```
 
 Check if already on a feature branch. If the current branch matches `feat/*`, `fix/*`, `docs/*`, or `chore/*`, skip branch creation and proceed to Step 4:
@@ -251,7 +261,12 @@ trap "$BODY_FILE_CLEANUP" EXIT
 
 # Capture the commit subject and changed files for substitution
 COMMIT_SUBJECT=$(git log -1 --oneline | sed 's/^[a-f0-9]* //')
-CHANGED_FILES=$(git diff --name-only HEAD~1 | head -5 | tr '\n' ', ' | sed 's/,$//')
+# Handle root commit (no parent) gracefully
+if git rev-parse HEAD~1 >/dev/null 2>&1; then
+  CHANGED_FILES=$(git diff --name-only HEAD~1 | head -5 | tr '\n' ', ' | sed 's/,$//')
+else
+  CHANGED_FILES=$(git diff --name-only --cached | head -5 | tr '\n' ', ' | sed 's/,$//')
+fi
 
 # Read the template, replace placeholders with actual content, write to temp file
 sed -e "s/<commit subject>/$COMMIT_SUBJECT/g" \
@@ -263,10 +278,18 @@ sed -e "s/<commit subject>/$COMMIT_SUBJECT/g" \
 
 ```bash
 BODY_FILE=$(mktemp)
+
+# Handle root commit (no parent) gracefully
+if git rev-parse HEAD~1 >/dev/null 2>&1; then
+  CHANGED_FILES=$(git diff --name-only HEAD~1 | head -5 | tr '\n' ', ' | sed 's/,$//')
+else
+  CHANGED_FILES=$(git diff --name-only --cached | head -5 | tr '\n' ', ' | sed 's/,$//')
+fi
+
 cat > "$BODY_FILE" << BODYEOF
 **Commit:** \`$(git log -1 --oneline)\`
 
-**Changed files:** \`$(git diff --name-only HEAD~1 | tr '\n' ', ' | sed 's/,$//')\`
+**Changed files:** \`$CHANGED_FILES\`
 BODYEOF
 ```
 
@@ -290,7 +313,7 @@ gh pr create \
   --title "<synthesized-title>" \
   --body-file "$BODY_FILE" \
   --base main \
-  --assignee avoidwork \
+  --assignee "$GH_OWNER" \
   --repo "$GH_REPO"
 ```
 
@@ -301,7 +324,7 @@ gh pr create \
   --title "<synthesized-title>" \
   --body "@-" \
   --base main \
-  --assignee avoidwork \
+  --assignee "$GH_OWNER" \
   --repo "$GH_REPO" < "$BODY_FILE"
 ```
 
@@ -312,7 +335,7 @@ gh pr create \
   --title "<synthesized-title>" \
   --body-file "$BODY_FILE" \
   --base main \
-  --assignee avoidwork \
+  --assignee "$GH_OWNER" \
   --repo "$GH_REPO"
 ```
 
