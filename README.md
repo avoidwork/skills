@@ -27,7 +27,7 @@ Skills for creating, tracking, and resolving issues.
 |-------|-------------|
 | **create-issue** | Receives a description, synthesizes a title and description, categorizes as `bug` or `feature`, creates a GitHub issue, audits the codebase, and appends findings. |
 | **fix-issue** | Accepts an issue ID, validates approval (`approved` label), marks it `in progress`, and chains to `create-feature` for implementation. |
-| **scan-issues** | Finds open issues labeled `approved` (excluding `in progress`), creates a git worktree for each, and processes them sequentially via `fix-issue`. Designed for hourly cron execution. |
+| **scan-issues** | Finds open issues labeled `approved` (excluding `in progress`) and processes them sequentially via `fix-issue`. Designed for hourly cron execution. |
 
 ### Feature Development
 
@@ -35,7 +35,7 @@ Skills for implementing features from specification to shipped code.
 
 | Skill | Description |
 |-------|-------------|
-| **create-feature** | Orchestrates the full feature lifecycle: receives goals, synthesizes specs via OpenSpec, commits specs to PR, applies tasks, audits results, updates the PR, and archives the change. |
+| **create-feature** | Orchestrates the full feature lifecycle: receives goals, synthesizes specs via OpenSpec, commits specs to PR, applies tasks, audits results, updates the PR, and archives the change. Creates an isolated git worktree for each run. |
 
 ### Git & PR Workflow
 
@@ -77,7 +77,7 @@ User: "fix-issue 42"
   ↓
 fix-issue (validate approval, set in-progress)
   ↓
-create-feature (spec → implement → test → PR → archive)
+create-feature (create worktree → spec → implement → test → PR → archive → cleanup worktree)
   ↓
 commit-push (stage, commit, push, PR)
   ↓
@@ -173,6 +173,7 @@ All skills share these prerequisites:
 | **openspec CLI** | Required by `create-feature` for spec generation |
 
 Additional requirements per skill:
+- **create-feature**: Git worktree support (for isolated worktree creation)
 - **release-madz**: Docker CLI, remote access
 - **scan-issues**: Cron scheduler (hourly execution)
 - **audit-sys-prompt**: Capable LLM for evaluation
