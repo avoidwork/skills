@@ -30,7 +30,7 @@ Strip any non-numeric characters and extract the numeric ID. If no ID was provid
 # The chain context is passed via CHAIN_CONTEXT env var or as $1
 ISSUE_NUM="${CHAIN_CONTEXT:-$1}"
 # Strip non-numeric characters (handles #42, issue-42, etc.)
-ISSUE_NUM=$(echo "$ISSUE_NUM" | grep -oE '[0-9]+' | head -1)
+ISSUE_NUM=$(echo "$ISSUE_NUM" | sed 's/[^0-9]//g')
 if [ -z "$ISSUE_NUM" ]; then
   echo "ERROR: No issue number provided. Usage: fix-issue <number>"
   exit 1
@@ -52,12 +52,26 @@ fi
 
 # SSH format: git@github.com:owner/repo.git
 if echo "$GIT_REMOTE" | grep -q '^git@'; then
-  REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)\.git$/\1/')
+  # Handle remote without .git suffix
+  if [ -z "$REPO" ]; then
+    REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)$/\1/')
+  fi
 # HTTPS format: https://github.com/owner/repo.git
 elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
-  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)\.git$/\1/')
+  # Handle remote without .git suffix
+  if [ -z "$REPO" ]; then
+    REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)$/\1/')
+  fi
 else
   echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
+  exit 1
+fi
+
+# Validate REPO is non-empty and contains a slash (owner/repo format)
+if [ -z "$REPO" ] || ! echo "$REPO" | grep -q '/'; then
+  echo "ERROR: Parsed repository '$REPO' does not look like 'owner/repo'. Check remote URL."
   exit 1
 fi
 ```
@@ -102,7 +116,7 @@ gh issue edit "$ISSUE_NUM" --add-label "in progress" --repo "$REPO"
 
 # Verify the label was added successfully
 LABEL_CHECK=$(gh issue view "$ISSUE_NUM" --json labels --jq '.[].name' --repo "$REPO" 2>/dev/null || true)
-if ! echo "$LABEL_CHECK" | grep -q '"in progress"'; then
+if ! echo "$LABEL_CHECK" | grep -q 'in progress'; then
   echo "ERROR: Failed to add 'in progress' label to issue #$ISSUE_NUM."
   exit 1
 fi
@@ -205,7 +219,7 @@ Add a reusable capture pattern to extract `PR_NUMBER` from the conversation hist
 # Capture PR_NUMBER from the conversation history (last occurrence wins)
 # The chained skill prints lines like: PR_NUMBER=42 or PR_URL=https://...
 # Use grep to find lines matching the pattern, take the last one
-PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | sed -n 's/^PR_NUMBER=\([0-9]\{1,\}\)$/\1/p' | tail -1)
 if [ -z "$PR_NUMBER" ]; then
   echo "ERROR: Could not capture PR_NUMBER from create-feature output. Conversation history:"
   echo "$CONVERSATION_HISTORY" | tail -20

@@ -92,12 +92,13 @@ Implement the counting and bump decision:
 
 ```bash
 # Count commit types (excluding merge commits and reverts)
-FEAT_COUNT=$(echo "$COMMITS" | grep -c "^feat:" || true)
-FIX_COUNT=$(echo "$COMMITS" | grep -c "^fix:" || true)
-PERF_COUNT=$(echo "$COMMITS" | grep -c "^perf:" || true)
-BREAKING_COUNT=$(echo "$COMMITS" | grep -cE "(BREAKING CHANGE|!)" || true)
-REVERT_FEAT_COUNT=$(echo "$COMMITS" | grep -cE '^Revert "feat:' || true)
-REVERT_FIX_COUNT=$(echo "$COMMITS" | grep -cE '^Revert "fix:' || true)
+# Patterns match both "type:" and "type(scope):" conventional commit formats
+FEAT_COUNT=$(echo "$COMMITS" | grep -cE "^feat(\(|:)" || true)
+FIX_COUNT=$(echo "$COMMITS" | grep -cE "^fix(\(|:)" || true)
+PERF_COUNT=$(echo "$COMMITS" | grep -cE "^perf(\(|:)" || true)
+BREAKING_COUNT=$(echo "$COMMITS" | grep -cE "(BREAKING CHANGE|!:)" || true)
+REVERT_FEAT_COUNT=$(echo "$COMMITS" | grep -cE '^Revert "feat' || true)
+REVERT_FIX_COUNT=$(echo "$COMMITS" | grep -cE '^Revert "fix' || true)
 
 # Net counts after reverts
 NET_FEAT=$((FEAT_COUNT - REVERT_FEAT_COUNT))
@@ -115,14 +116,16 @@ elif [ "$NET_FIX" -gt 0 ]; then
   REASON="$NET_FIX unreverted fix(es)"
 elif [ -n "$COMMITS" ]; then
   BUMP="patch"
-  REASON="no version-relevant commits ($COMMITS | wc -l) commits"
+  REASON="no version-relevant commits ($(echo "$COMMITS" | wc -l) commits)"
 else
   echo "No commits to release. Aborting."
   exit 1
 fi
 
-# Compute new version
-IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+# Compute new version using POSIX-compatible field splitting
+MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
 case "$BUMP" in
   major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
   minor) NEW_VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
@@ -151,7 +154,7 @@ if [ "$VERSION_COUNT" -ne 1 ]; then
   echo "ERROR: Found $VERSION_COUNT version fields in package.json. Cannot proceed safely."
   exit 1
 fi
-sed -i 's/"version": "[^"]*"/"version": "<NEW_VERSION>"/' package.json
+sed 's/"version": "[^"]*"/"version": "<NEW_VERSION>"/' package.json > package.json.tmp && mv package.json.tmp package.json
 ```
 
 Verify the change:
@@ -180,6 +183,9 @@ if jq -e '.scripts.build' package.json > /dev/null 2>&1; then
 fi
 
 npm run changelog
+if [ $? -ne 0 ]; then
+  echo "WARNING: npm run changelog failed. Continuing without changelog update."
+fi
 ```
 
 This installs dependencies (ensuring lockfile is current), runs `build` if the project has one (**must succeed** if present — a broken build is a broken release), and generates an updated `CHANGELOG.md` using `auto-changelog`. The `--ignore-scripts` flag prevents postinstall scripts from running during the version bump. If `npm i` fails, abort immediately — do not proceed to commit a broken state.
@@ -201,7 +207,7 @@ Add a reusable capture pattern to extract `PR_NUMBER` from the conversation hist
 
 ```bash
 # Capture PR_NUMBER from the conversation history (last occurrence wins)
-PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | sed -n 's/^PR_NUMBER=\([0-9]\{1,\}\)$/\1/p' | tail -1)
 if [ -z "$PR_NUMBER" ]; then
   echo "ERROR: Could not capture PR_NUMBER from commit-push output."
   exit 1

@@ -17,16 +17,13 @@ Audits Agent Skills `SKILL.md` files against the Agent Skills specification and 
 
 ## Usage
 
-Pass the path to the skill directory as the first argument in the delegation:
+Pass the path to the skill directory as a chain instruction:
 
 ```
-subAgent({
-  delegation: "run audit-skill /path/to/skill-directory",
-  cwd: "/path/to/parent"
-})
+audit-skill /path/to/skill-directory
 ```
 
-The `cwd` is the parent directory containing the skill folder. The skill path is the first word after `audit-skill` in the delegation string.
+The skill path is the first argument after `audit-skill` in the instruction. The agent reads the SKILL.md from that directory and produces a structured audit report.
 
 ## Audit Categories
 
@@ -170,15 +167,22 @@ Check usage of optional directories:
 3. **Read the Markdown body** — analyze structure and content:
    ```bash
    # Count lines in body (after frontmatter)
-   wc -l < <(sed '1,/^---$/d' "$SKILL_PATH/SKILL.md")
+   sed '1,/^---$/d' "$SKILL_PATH/SKILL.md" | wc -l
    # Count subheadings
-   grep -c '^## ' "$SKILL_PATH/SKILL.md"
-   # Count examples (code blocks)
-   grep -c '^```' "$SKILL_PATH/SKILL.md" | awk '{print int($1/2)}'
+   grep -c '^## ' "$SKILL_PATH/SKILL.md" || true
+   # Count code blocks (opening ``` lines, divide by 2 for block count)
+   BLOCK_COUNT=$(grep -c '^```' "$SKILL_PATH/SKILL.md" 2>/dev/null || echo 0)
+   echo "Code blocks: $((BLOCK_COUNT / 2))"
    ```
 4. **Check for optional directories** — list `scripts/`, `references/`, `assets/` if they exist:
    ```bash
-   ls -la "$SKILL_PATH/scripts/" "$SKILL_PATH/references/" "$SKILL_PATH/assets/" 2>&1
+   for dir in scripts references assets; do
+     if [ -d "$SKILL_PATH/$dir" ]; then
+       echo "$dir/ exists ($(ls -1 "$SKILL_PATH/$dir" 2>/dev/null | wc -l) files)"
+     else
+       echo "$dir/ — not present"
+     fi
+   done
    ```
 5. **Validate file references** — check that referenced files exist:
    ```bash

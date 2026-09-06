@@ -52,6 +52,12 @@ if echo "$GIT_REMOTE" | grep -q '^git@'; then
 elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
   GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
 fi
+
+if [ -z "$GH_REPO" ]; then
+  echo "ERROR: Could not determine repository from git remote '$GIT_REMOTE'."
+  exit 1
+fi
+echo "GH_REPO=$GH_REPO"
 ```
 
 **Create a dedicated worktree directory inside the repo root (absolute path prevents nesting issues):**
@@ -284,10 +290,10 @@ The `commit-push` skill will:
 
 Read the `PR_NUMBER` from the structured output printed by `commit-push`. Do not attempt to grep a shell variable — the value is in the conversation history.
 
-Add a reusable capture pattern to extract `PR_NUMBER` from the conversation history after `commit-push` completes:
+**Capture `PR_NUMBER` from the conversation history** (the chained skill prints `PR_NUMBER=<number>` as structured output). Read it from the conversation context, not from a shell variable:
 
 ```bash
-# Capture PR_NUMBER from the conversation history (last occurrence wins)
+# PR_NUMBER is captured from the conversation history, not a shell variable.
 # The chained skill prints lines like: PR_NUMBER=42 or PR_URL=https://...
 # Use grep to find lines matching the pattern, take the last one
 PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
@@ -298,6 +304,8 @@ if [ -z "$PR_NUMBER" ]; then
 fi
 echo "PR_NUMBER=$PR_NUMBER"
 ```
+
+**Note:** `$CONVERSATION_HISTORY` is not a real environment variable. The agent running this skill substitutes the actual conversation text when executing the command. If the conversation history is not available as a shell variable, the agent should read the PR number directly from the conversation context instead of running this grep command.
 
 Write it to a file for later use in Step 12:
 
@@ -407,10 +415,10 @@ This will:
 
 Read the `PR_NUMBER` from the structured output. If `commit-push` fails, report the error and stop. Do not attempt to recover with manual git commands.
 
-Add a reusable capture pattern to extract `PR_NUMBER` from the conversation history after `commit-push` completes:
+**Capture `PR_NUMBER` from the conversation history** (the chained skill prints `PR_NUMBER=<number>` as structured output). Read it from the conversation context, not from a shell variable:
 
 ```bash
-# Capture PR_NUMBER from the conversation history (last occurrence wins)
+# PR_NUMBER is captured from the conversation history, not a shell variable.
 PR_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^PR_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
 if [ -z "$PR_NUMBER" ]; then
   echo "ERROR: Could not capture PR_NUMBER from commit-push output."
@@ -418,6 +426,8 @@ if [ -z "$PR_NUMBER" ]; then
 fi
 echo "PR_NUMBER=$PR_NUMBER"
 ```
+
+**Note:** `$CONVERSATION_HISTORY` is not a real environment variable. The agent substitutes the actual conversation text when executing the command. If the conversation history is not available as a shell variable, read the PR number directly from the conversation context instead.
 
 **After `/commit-push` completes, continue to Step 8.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
@@ -427,13 +437,20 @@ echo "PR_NUMBER=$PR_NUMBER"
 
 After tasks are applied, verify the application actually starts without crashing.
 
-**Run with a timeout** — this is the preferred method:
+**Run with a timeout** — use a portable approach that works on both GNU and BSD:
 
 ```bash
-timeout 10 npm start 2>&1 || true
+# Portable timeout: use Perl if available, otherwise background + sleep + kill
+if command -v timeout >/dev/null 2>&1; then
+  timeout 10 npm start 2>&1 || true
+else
+  npm start &
+  NPM_PID=$!
+  sleep 10
+  kill $NPM_PID 2>/dev/null || true
+  wait $NPM_PID 2>/dev/null || true
+fi
 ```
-
-This ensures the process terminates after 10 seconds even if it hangs.
 
 If the application fails to start, fix the issue before proceeding. Do not skip this step — a crashing application means the implementation is flawed.
 

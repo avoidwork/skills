@@ -175,7 +175,7 @@ The title should be concise and descriptive, prefixed with `refactor:` since res
 ```bash
 # Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
 # The chained skill prints lines like: ISSUE_NUMBER=42
-ISSUE_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^ISSUE_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
+ISSUE_NUMBER=$(echo "$CONVERSATION_HISTORY" | sed -n 's/^ISSUE_NUMBER=\([0-9]\{1,\}\)$/\1/p' | tail -1)
 if [ -z "$ISSUE_NUMBER" ]; then
   echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output. Conversation history:"
   echo "$CONVERSATION_HISTORY" | tail -20
@@ -198,8 +198,10 @@ Once the issue is created, replace the dummy body with the full restructuring an
 BODY_FILE=$(mktemp)
 
 # Set up guaranteed cleanup for BODY_FILE
-BODY_FILE_CLEANUP="rm -f \"$BODY_FILE\""
-trap "$BODY_FILE_CLEANUP" EXIT
+cleanup_restructure_body() {
+    rm -f "$BODY_FILE"
+}
+trap 'cleanup_restructure_body' EXIT
 
 # Build the full analysis body — use heredoc to preserve formatting
 cat > "$BODY_FILE" << BODYEOF
@@ -229,9 +231,13 @@ BODYEOF
 # Update the issue — use dynamic repo variable derived from git remote
 GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
 if echo "$GIT_REMOTE" | grep -q 'github\.com'; then
-  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+  REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)\.git$/\1/')
+  if [ -z "$REPO" ]; then
+    REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)$/\1/')
+  fi
   GH_REPO_OPT="--repo $REPO"
 else
+  echo "WARNING: Could not parse GitHub repository from remote. Skipping issue body update."
   GH_REPO_OPT=""
 fi
 
@@ -270,19 +276,19 @@ After completing the phase (issue created or no issues found), update the state 
     ```bash
     # Use | as sed delimiter instead of / to handle directory paths safely
     ESCAPED_DIR=$(echo "$CURRENT_DIR" | sed 's/[|/]/\\&/g')
-    sed -i "s|- \[ \] $ESCAPED_DIR|- [x] $ESCAPED_DIR|" "$STATE_FILE"
-   ```
+    sed "s|- \[ \] $ESCAPED_DIR|- [x] $ESCAPED_DIR|" "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    ```
 2. **Append to Completed section:**
    ```bash
-   sed -i '/^## Completed$/a - '"$CURRENT_DIR" "$STATE_FILE"
+   sed '/^## Completed$/a - '"$CURRENT_DIR" "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
    ```
 3. **Update Current Phase** to the next directory in the queue, or clear it if this was the last:
    ```bash
    NEXT_DIR=$(grep -A100 "## Phase Queue" "$STATE_FILE" | grep "\- \[ \]" | head -1 | sed 's/- \[ \] //')
    if [ -n "$NEXT_DIR" ]; then
-     sed -i "s/^## Current Phase$/## Current Phase\n$NEXT_DIR/" "$STATE_FILE"
+     sed "s/^## Current Phase$/## Current Phase\n$NEXT_DIR/" "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
    else
-     sed -i '/^## Current Phase$/d' "$STATE_FILE"
+     sed '/^## Current Phase$/d' "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
    fi
    ```
 4. **Save the updated state** to `$STATE_FILE` (the sed commands above modify in place).

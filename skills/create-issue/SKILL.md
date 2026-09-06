@@ -113,7 +113,10 @@ The template may contain YAML frontmatter — strip it before populating. Use `s
 
 ```bash
 # Strip YAML frontmatter (lines between first and second ---)
-sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH"
+# Two-pass approach for POSIX sed compatibility:
+#   Pass 1: delete from line 1 through first --- (inclusive)
+#   Pass 2: delete from the next --- through end of file
+sed '1,/^---$/d' "$TEMPLATE_PATH" | sed '1,/^---$/d'
 ```
 
 **Rules for synthesis:**
@@ -163,7 +166,10 @@ sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH"
 
 ```bash
 # Read the template, strip frontmatter, and store in variable
-FULL_TEMPLATE_BODY=$(sed -e '1,/^---$/d' -e '/^---$/,$d' "$TEMPLATE_PATH")
+# Two-pass approach for POSIX sed compatibility:
+#   Pass 1: delete from line 1 through first --- (inclusive)
+#   Pass 2: delete from the next --- through end of file
+FULL_TEMPLATE_BODY=$(sed '1,/^---$/d' "$TEMPLATE_PATH" | sed '1,/^---$/d')
 ```
 
 ### 4.5. Populate Environment Section
@@ -249,16 +255,28 @@ fi
 GH_REPO_FLAG=""
 # SSH format: git@github.com:owner/repo.git
 if echo "$GIT_REMOTE" | grep -q '^git@'; then
-  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)\.git$/\1/')
+  if [ -z "$GH_REPO" ]; then
+    GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\)$/\1/')
+  fi
   GH_REPO_FLAG="--repo $GH_REPO"
 # HTTPS format: https://github.com/owner/repo.git or https://TOKEN@github.com/owner/repo.git
 elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
-  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)\.git$/\1/')
+  if [ -z "$GH_REPO" ]; then
+    GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\)$/\1/')
+  fi
   GH_REPO_FLAG="--repo $GH_REPO"
 fi
 
 if [ -z "$GH_REPO" ]; then
   echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'. Cannot create issue."
+  exit 1
+fi
+
+# Validate GH_REPO is non-empty and contains a slash (owner/repo format)
+if ! echo "$GH_REPO" | grep -q '/'; then
+  echo "ERROR: Parsed repository '$GH_REPO' does not look like 'owner/repo'. Check remote URL."
   exit 1
 fi
 ```
@@ -273,8 +291,10 @@ fi
 BODY_FILE=$(mktemp)
 
 # Set up guaranteed cleanup for BODY_FILE
-BODY_FILE_CLEANUP="rm -f \"$BODY_FILE\""
-trap "$BODY_FILE_CLEANUP" EXIT
+cleanup_body_file() {
+    rm -f "$BODY_FILE"
+}
+trap 'cleanup_body_file' EXIT
 
 cat > "$BODY_FILE" << BODYEOF
 $(echo "$FULL_TEMPLATE_BODY" | sed "s|<SYNTHESIZED_TITLE>|$SYNTHESIZED_TITLE|g")
@@ -286,7 +306,7 @@ ISSUE_URL=$(gh issue create \
   --label "$LABEL" \
   $GH_REPO_FLAG)
 
-ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '/issues/[0-9]+' | grep -oE '[0-9]+$')
+ISSUE_NUMBER=$(echo "$ISSUE_URL" | sed 's/.*\/issues\/\([0-9]\{1,\}\).*/\1/')
 
 # Verify the issue was created successfully and is open
 ISSUE_STATE=$(gh issue view "$ISSUE_NUMBER" --json state --jq '.state' $GH_REPO_FLAG 2>/dev/null || true)
@@ -372,7 +392,7 @@ if echo "$VERIFY" | grep -q "Audit Findings"; then
 else
   echo "WARNING: Audit notes not found on issue. Retrying..."
   # Retry once with the same append logic
-  echo -e "${CURRENT_BODY}${AUDIT_SECTION}" | gh issue edit "$ISSUE_NUMBER" --body-file - $GH_REPO_FLAG
+  printf '%s\n' "${CURRENT_BODY}${AUDIT_SECTION}" | gh issue edit "$ISSUE_NUMBER" --body-file - $GH_REPO_FLAG
 fi
 ```
 

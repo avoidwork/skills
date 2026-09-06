@@ -24,9 +24,11 @@ Use a state file to persist progress across responses. The state file is cleaned
 
 The state file path is provided in the chain context (the text after `/audit-code`). If no path is provided, default to an example name like `audit-state.md` — the agent decides where to place it.
 
-Store the path in a variable:
+To prevent collisions when multiple instances run, include a session identifier in the path:
+
 ```bash
-STATE_FILE="${STATE_FILE_PATH:-audit-state.md}"
+SESSION_ID=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' || echo $RANDOM$RANDOM$RANDOM)
+STATE_FILE="${STATE_FILE_PATH:-audit-state-${SESSION_ID}.md}"
 ```
 
 ### State File Format
@@ -56,21 +58,45 @@ STATE_FILE="${STATE_FILE_PATH:-audit-state.md}"
 3. **On resume** — Read the state file to determine where to pick up.
 4. **End of audit** — Delete the state file once all phases are complete.
 
+**Set up cleanup trap** at the start of Phase 0 so the state file is removed regardless of how the audit exits:
+
+```bash
+trap 'rm -f "$STATE_FILE"' EXIT
+```
+
 ---
 
 ## Phase Protocol
 
 ### Phase 0: Discovery
 
-1. **Clean state.** Delete any existing state file: `rm -f "$STATE_FILE"`
-2. **Enumerate directories.** List all directories to audit:
+1. **Derive repository info** once at the start (used for all issue operations):
+   ```bash
+   GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+   if echo "$GIT_REMOTE" | grep -q '^git@'; then
+     REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+   elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+     REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+   else
+     echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
+     exit 1
+   fi
+   echo "REPO=$REPO"
+   ```
+
+2. **Clean state.** Delete any existing state file: `rm -f "$STATE_FILE"`
+
+3. **Enumerate directories.** List all directories to audit:
    ```bash
    # List ./src and all immediate subdirectories, excluding common patterns
    find ./src -maxdepth 1 -type d | sort
    ```
-3. Sort them alphabetically (the `find | sort` above handles this).
-4. Build the phase queue: `[./src, subdir1, subdir2, ...]` in alphabetical order.
-5. **Save the phase queue** to the state file:
+
+4. Sort them alphabetically (the `find | sort` above handles this).
+
+5. Build the phase queue: `[./src, subdir1, subdir2, ...]` in alphabetical order.
+
+6. **Save the phase queue** to the state file:
    ```bash
    cat > "$STATE_FILE" << EOF
    # Audit State
@@ -139,7 +165,7 @@ For each directory in the queue:
     **Security** — grep for OWASP Top 10 violations (per AGENTS.md §1.2):
     ```bash
     # Hardcoded secrets — capture count only, NEVER print values to issue body
-    SECRET_COUNT=$(grep -rnc 'password\s*=\s*["\x27]' "$file" 2>/dev/null | tail -1 | cut -d: -f2)
+    SECRET_COUNT=$(grep -rnc 'password\s*=\s*["\x27]' "$file" 2>/dev/null | awk -F: '{s+=$NF}END{print s}')
     SECRET_COUNT=${SECRET_COUNT:-0}
     # eval() usage (forbidden per AGENTS.md §1.1)
     grep -rn 'eval(' "$file"
@@ -177,38 +203,11 @@ For each directory in the queue:
    ```
    create-issue Audit findings for $CURRENT_PHASE: Found N critical, N high, N medium, N low issues. See audit results below for details.
    ```
-   Capture the issue number from the `create-issue` output. The `create-issue` skill prints `ISSUE_NUMBER=<number>` as structured output. Read it from the conversation history:
+
+   **Capture `ISSUE_NUMBER` from the create-issue output** (the chained skill prints `ISSUE_NUMBER=<number>`):
 
    ```bash
    # Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
-   ISSUE_NUMBER=$(grep -oE 'ISSUE_NUMBER=[0-9]+' <<< "$CONVERSATION_HISTORY" | tail -1 | cut -d= -f2)
-   if [ -z "$ISSUE_NUMBER" ]; then
-     echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output."
-     exit 1
-   fi
-   echo "ISSUE_NUMBER=$ISSUE_NUMBER"
-   ```
-
-   **Derive `$REPO` from the git remote:**
-
-   ```bash
-   GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
-   if echo "$GIT_REMOTE" | grep -q '^git@'; then
-     REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
-   elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
-     REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
-   else
-     echo "ERROR: Could not parse repository from remote '$GIT_REMOTE'."
-     exit 1
-   fi
-   echo "REPO=$REPO"
-   ```
-
-   **Capture `ISSUE_NUMBER` from the create-issue output:**
-
-   ```bash
-   # Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
-   # The chained skill prints lines like: ISSUE_NUMBER=42
    ISSUE_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^ISSUE_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
    if [ -z "$ISSUE_NUMBER" ]; then
      echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output. Conversation history:"
@@ -220,17 +219,18 @@ For each directory in the queue:
 
    **After creating the issue (or failing to), continue to Step 6.** Do not stop or wait for further input — the pipeline proceeds automatically.
 
-6. **Update Issue Body.** Append a structured audit table to the issue:
+6. **Update Issue Body.** Append a structured audit table to the issue. Collect findings into a temp file, then write them to the issue:
+
    ```bash
-   AUDIT_TABLE="| File | Type | Severity | Summary |\n|------|------|----------|---------|\n"
-   # Build table from findings
-   # ... (populate from audit results)
-   echo -e "$AUDIT_TABLE" > /tmp/audit-table.md
+   AUDIT_FILE=$(mktemp)
 
-   # Set up guaranteed cleanup for audit table
-   trap 'rm -f /tmp/audit-table.md' EXIT
+   # Write the audit table header
+   printf "| File | Type | Severity | Summary |\n|------|------|----------|---------|\n" > "$AUDIT_FILE"
 
-   gh issue edit "$ISSUE_NUMBER" --body-file /tmp/audit-table.md --repo "$REPO"
+   # Append each finding as a table row (populated from the audit results collected above)
+   # Example: printf "| src/foo.js | bug | high | Unhandled promise rejection |\n" >> "$AUDIT_FILE"
+
+   gh issue edit "$ISSUE_NUMBER" --body-file "$AUDIT_FILE" --repo "$REPO"
 
    # Verify the body was updated successfully
    VERIFY_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' --repo "$REPO" 2>/dev/null || true)
@@ -239,6 +239,8 @@ For each directory in the queue:
    else
      echo "Audit table verified on issue #$ISSUE_NUMBER."
    fi
+
+   rm -f "$AUDIT_FILE"
    ```
 
 7. **Update State.** Mark the directory as completed in the state file:
