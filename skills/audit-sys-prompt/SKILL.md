@@ -24,23 +24,23 @@ Read the system prompt file. The path is provided in the chain context (the text
 3. `.opencode/system_prompt.md`
 
 ```bash
-PROMPT_FILE="${PROMPT_FILE_PATH:-./prompts/SYSTEM_PROMPT.md}"
-if [ ! -f "$PROMPT_FILE" ]; then
-  PROMPT_FILE="./SYSTEM_PROMPT.md"
-  if [ ! -f "$PROMPT_FILE" ]; then
-    PROMPT_FILE=".opencode/system_prompt.md"
-  fi
+PROMPT_FILE="${PROMPT_FILE_PATH:-}"
+if [ -z "$PROMPT_FILE" ]; then
+  # No explicit path — try defaults
+  for candidate in "./prompts/SYSTEM_PROMPT.md" "./SYSTEM_PROMPT.md" ".opencode/system_prompt.md"; do
+    if [ -f "$candidate" ]; then
+      PROMPT_FILE="$candidate"
+      break
+    fi
+  done
 fi
+
+if [ -z "$PROMPT_FILE" ] || [ ! -f "$PROMPT_FILE" ]; then
+  echo '{"error":"File not found","message":"Could not read system prompt file"}'
+  exit 1
+fi
+
 cat "$PROMPT_FILE"
-```
-
-If the file cannot be read, return a parseable error JSON:
-
-```json
-{
-  "error": "File not found",
-  "message": "Could not read $PROMPT_FILE"
-}
 ```
 
 ---
@@ -183,7 +183,7 @@ No input required. The skill reads the system prompt file automatically (see **S
 
 These may be provided in the chain context or as environment variables:
 
-- **`prompt_id`**: A short string identifier for this prompt. If omitted, a SHA-256 hash of the first 200 characters is used.
+- **`prompt_id`**: A short string identifier for this prompt. If omitted, a hash of the first 200 characters is used (via `sha256sum` or `shasum -a 256` depending on platform).
 - **`custom_weights`**: Override criterion weights as a JSON object. Example:
 
   ```json
