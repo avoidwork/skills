@@ -2,7 +2,7 @@
 name: update-semver
 description: Audits the delta between HEAD and the tag matching the current package.json version, decides if it's a major/minor/patch bump, updates package.json, runs npm i and npm run changelog, then triggers commit-push, enables auto-merge on the PR, and announces the new version. Does NOT create a git tag — that is handled by the separate git-tag skill after the PR merges.
 license: BSD 3-Clause
-compatibility: Requires Node.js 24+, npm, git CLI with remote access, and gh CLI for PR management. Must be run from the project root directory containing package.json.
+compatibility: Requires Node.js 24+, npm, git CLI with remote access, gh CLI for PR management, and git worktree support. Must be run from the project root directory containing package.json.
 metadata:
   agent: coding
 ---
@@ -13,9 +13,100 @@ metadata:
 
 You are the release conductor. The version number is the promise you make to the world. Treat it with precision. Follow these steps in order.
 
-## Step 1: Create a Release Branch
+## Step 1: Ensure Clean State & Create Isolated Worktree
 
-Before touching any files, create a deterministic branch for this release. This keeps `main` pristine and gives the PR a clear home.
+Before touching any files, create a dedicated git worktree so the release work is isolated from the main working tree. This keeps `main` pristine and gives the PR a clear home.
+
+**Capture the project root and repository info (needed for worktree paths and gh commands):**
+
+```bash
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+GIT_REMOTE=$(git remote get-url origin 2>/dev/null)
+if echo "$GIT_REMOTE" | grep -q '^git@'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*@[^:]*:\(.*\).git$/\1/')
+elif echo "$GIT_REMOTE" | grep -q 'github\.com'; then
+  GH_REPO=$(echo "$GIT_REMOTE" | sed 's/.*github\.com[/:]\(.*\).git$/\1/')
+fi
+
+if [ -z "$GH_REPO" ]; then
+  echo "ERROR: Could not determine repository from git remote '$GIT_REMOTE'."
+  exit 1
+fi
+echo "GH_REPO=$GH_REPO"
+```
+
+**Create a dedicated worktree directory as a sibling of the repo root.** Placing it *outside* the repo (e.g., `madz.worktrees/` next to `madz/`) avoids nesting a git repository inside the main working tree. A nested worktree is a known git footgun: it shows up as a nested repo to `git status`/`git clean`, and requires a `.gitignore` entry to hide it. A sibling directory keeps the repo pristine — no ignore entry needed, `git clean -fdx` is a no-op, and the worktree is still tracked normally via the `.git` file pointing back into the repo's `.git/worktrees/`.
+
+```bash
+WORKTREES_DIR="$(dirname "$PROJECT_ROOT")/$(basename "$PROJECT_ROOT").worktrees"
+mkdir -p "$WORKTREES_DIR"
+```
+
+```bash
+# Only checkout main if not already on it
+if [ "$(git branch --show-current)" != "main" ]; then
+  # Verify main exists on remote before pulling
+  REMOTE_MAIN=$(git ls-remote --heads origin main 2>/dev/null)
+  if [ -n "$REMOTE_MAIN" ]; then
+    git fetch origin main
+    git checkout main
+    git pull origin main
+  else
+    echo "WARNING: No remote branch 'main' found. Current branch '$(git branch --show-current)' will be used as-is."
+  fi
+fi
+```
+
+Verify the working tree is clean:
+```bash
+git status --porcelain
+```
+
+If there are uncommitted changes, report them and stop. Do not proceed with a dirty tree.
+
+**Capture a unique session identifier** so that multiple instances (e.g., subagents) can run in parallel without file collisions:
+
+```bash
+# Portable: works in Alpine, minimal images, and standard Linux
+# Generates 8 random hex chars from /dev/urandom, falls back to $RANDOM if unavailable
+SESSION_ID=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' || echo $RANDOM$RANDOM$RANDOM)
+echo "SESSION_ID=$SESSION_ID"
+```
+
+**Create the isolated worktree from `main`:**
+
+```bash
+WORKTREE_PATH="${WORKTREES_DIR}/${SESSION_ID}"
+
+# Create the worktree from main (--detach since main is already checked out)
+git worktree add --detach "$WORKTREE_PATH" main
+
+# Verify worktree creation succeeded
+if [ ! -d "$WORKTREE_PATH" ]; then
+  echo "ERROR: Worktree creation failed at $WORKTREE_PATH."
+  exit 1
+fi
+
+# Record the original directory so we can return for cleanup
+ORIGINAL_DIR=$(pwd)
+echo "WORKTREE_PATH=$WORKTREE_PATH"
+```
+
+**Change into the worktree** — all subsequent steps run from here:
+
+```bash
+cd "$WORKTREE_PATH"
+```
+
+**Set up guaranteed cleanup** — the trap removes the worktree on exit regardless of success or failure:
+
+```bash
+trap 'cd "$ORIGINAL_DIR" 2>/dev/null; git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true; rm -rf "$WORKTREE_PATH" 2>/dev/null' EXIT
+```
+
+## Step 1.5: Create a Release Branch
+
+Create a deterministic branch for this release inside the worktree. This gives the PR a clear home.
 
 ```bash
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
@@ -283,5 +374,11 @@ The world gets a new version.
 ```
 
 ## Gotchas
+
+- **Worktree isolation.** All release work happens in an isolated worktree created in Step 1. The worktree is a sibling of the repo root (e.g., `madz.worktrees/<SESSION_ID>/`), not nested inside it — this avoids the nested-repo footgun and keeps `main` pristine.
+- **Cleanup is automatic.** The trap registered in Step 1 removes the worktree on exit regardless of success or failure. No manual cleanup is needed.
+- **Session IDs prevent collisions.** When running multiple instances (e.g., subagents), always use a unique `SESSION_ID` to avoid worktree path collisions.
+- **`commit-push` is delegated, not inline.** Step 8 invokes `commit-push` as a chain instruction — do not perform git operations inline at that step.
+- **Never commit directly to `main`.** The release branch is created inside the worktree in Step 1.5; `main` is never modified directly.
 
 ---
