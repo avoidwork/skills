@@ -60,10 +60,10 @@ fi
 echo "GH_REPO=$GH_REPO"
 ```
 
-**Create a dedicated worktree directory inside the repo root (absolute path prevents nesting issues):**
+**Create a dedicated worktree directory as a sibling of the repo root.** Placing it *outside* the repo (e.g., `madz.worktrees/` next to `madz/`) avoids nesting a git repository inside the main working tree. A nested worktree is a known git footgun: it shows up as a nested repo to `git status`/`git clean`, and requires a `.gitignore` entry to hide it. A sibling directory keeps the repo pristine — no ignore entry needed, `git clean -fdx` is a no-op, and the worktree is still tracked normally via the `.git` file pointing back into the repo's `.git/worktrees/`.
 
 ```bash
-WORKTREES_DIR="${PROJECT_ROOT}/.worktrees"
+WORKTREES_DIR="$(dirname "$PROJECT_ROOT")/$(basename "$PROJECT_ROOT").worktrees"
 mkdir -p "$WORKTREES_DIR"
 ```
 
