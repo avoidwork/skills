@@ -1,6 +1,6 @@
 ---
 name: release-madz
-description: Builds and pushes all Docker images for the madz project by running npm run docker:release:all. Runs the build as a foreground process — it takes a few minutes. Reports completion status to the user.
+description: Builds and pushes all Docker images for the madz project by running npm run docker:release:all. Runs the build as a background process with a 30-minute timeout. Reports completion status to the user. NOT retryable — Docker image tags are immutable, so a failed run cannot be re-run against the same version.
 license: BSD 3-Clause
 compatibility: Requires Node.js 24+, npm, Docker CLI, and git with remote access. Must be run from the project root directory.
 metadata:
@@ -11,12 +11,15 @@ metadata:
 
 > **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
 
-> **⚠️ CRITICAL: This skill is idempotent but NOT retryable.**
+> **⚠️ CRITICAL: This skill is NOT retryable.**
 > Docker image tags are immutable — once `1.23.0` is pushed, it cannot be overwritten.
 > A second run with the same version will fail. You cannot re-run this skill to check
-> status or retry a failed run. The first execution is the only execution.
-> **If the build fails, you must fix the underlying issue, bump the version, and run
-> again — not re-run this skill against the same tag.**
+> status or retry a failed run. **The first execution is the only execution.**
+>
+> **If the build fails, you must NOT re-run this skill against the same tag.** Stop,
+> report the failure, and let the user fix the underlying issue, bump the version,
+> and run again. Re-running against the same tag will either fail (if the image
+> partially pushed) or produce a misleading result. There is no safe way to retry.
 
 Build and push all Docker images for the madz project. This is the final step — the moment of truth.
 
@@ -78,20 +81,22 @@ If the git tag is missing, warn the user but do not block — the tag may have b
 
 ## 1. Run the Build
 
-Run `npm run docker:release:all` as a **foreground process**. This takes a few minutes. The skill description says "foreground" — do not background it.
+Run `npm run docker:release:all` as a **background process**. The build takes several minutes and can exceed the default tool timeout, so it must be backgrounded. Use a **30-minute timeout** for the process.
 
 ```bash
 npm run docker:release:all
 ```
 
+Start it in the background (e.g., via the process tool with `background: true`), then wait on the process ID. Do not run it in the foreground — it will time out.
+
 ## 2. Wait for Completion
 
-Wait for the process to exit, then check the exit code:
+Wait for the background process to exit (up to the 30-minute timeout), then check the exit code:
 
 - **exit code 0** — Success. All images built and pushed.
 - **non-zero exit code** — Failure. Capture the last 10 lines of output for context.
 
-**Note on retryability:** The warning at the top of this skill says the skill is "NOT retryable" — this means you cannot re-run this skill against the **same tag** (Docker image tags are immutable). If the build fails, you can report the failure and stop. The user must fix the underlying issue, bump the version, and run the skill again with the new version. This step is about **handling the failure of the current run**, not about retrying the same tag.
+**Note on retryability:** The warning at the top of this skill says the skill is "NOT retryable" — this means you cannot re-run this skill against the **same tag** (Docker image tags are immutable). If the build fails, you can report the failure and stop. The user must fix the underlying issue, bump the version, and run the skill again with the new version. This step is about **handling the failure of the current run**, not about retrying the same tag. **Do not re-run the build against the same version.**
 
 ## 3. Report
 
@@ -118,7 +123,7 @@ Agent: Pre-flight check...
   Disk space: 15GB available
   Image exists: NOT_FOUND
 
-Running build...
+Running build (background, 30-min timeout)...
   npm run docker:release:all
   [build output...]
 
@@ -131,7 +136,8 @@ Docker user: avoidwork
 
 ## Gotchas
 
-- **This skill is NOT retryable.** Docker image tags are immutable. Once `1.23.0` is pushed, it cannot be overwritten. A second run with the same version will fail. If the build fails, fix the underlying issue, bump the version, and run again — do not re-run this skill against the same tag.
+- **This skill is NOT retryable.** Docker image tags are immutable. Once `1.23.0` is pushed, it cannot be overwritten. A second run with the same version will fail. **If the build fails, do not re-run this skill against the same tag** — fix the underlying issue, bump the version, and run again. There is no safe retry.
+- **Run the build in the background with a 30-minute timeout.** The build takes several minutes and will exceed the default tool timeout if run in the foreground. Start it as a background process and wait on the PID.
 - **Always check disk space.** Docker builds need ~2GB free. If disk space is insufficient, the build will fail partway through.
 - **Verify Docker is running.** The pre-flight check verifies the Docker daemon is accessible. If it's not, start Docker before proceeding.
 - **Registry auth must be configured.** If `docker info` shows unclear login status, the push will fail. Run `docker login` first.
