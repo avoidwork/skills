@@ -137,7 +137,7 @@ Check the status to ensure nothing unexpected is included:
 git status
 ```
 
-If there are untracked files that shouldn't be committed, ask the user or exclude them via `.gitignore` before proceeding.
+If there are untracked files that shouldn't be committed, exclude them via `.gitignore` and log a warning before proceeding.
 
 **Check for no changes:** If `git status --porcelain` returns nothing after staging, there are no changes to commit. Report this and stop — do not create an empty commit.
 
