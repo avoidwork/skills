@@ -264,6 +264,19 @@ Perform a thorough audit:
 
 Write audit findings to a file named `${SESSION_ID}-audit-results.md` (use an example name — the agent decides where to place it).
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to decide whether errors remain before iterating. Pass the audit findings as state.
+
+```
+Question: "Do the specs faithfully cover all goals with no errors?"
+Type: noul
+Criteria:
+  false = missing requirements, fidelity gaps, or task-spec mismatch
+  true  = all goals covered, faithful, complete, consistent
+Example answer: false
+```
+
+**Important:** The `noul` type returns a *single float in [0,1]*, not a label — it is the probability of `true`. Interpret it as: `≥ 0.6` → true (no errors, proceed), `≤ 0.4` → false (errors remain, iterate), between → unknown. Fall back to manual review if no decision tool is available.
+
 **If errors are found:**
 - Fix the spec documents to address each finding
 - Update tasks.md if task-to-spec mapping is broken
@@ -466,6 +479,19 @@ Read the original goals from the file named `${SESSION_ID}-feature-goals.md` (us
 4. **Quality check:** Are there any obvious issues, missing edge cases, or inconsistencies?
 
 Write audit findings to the file named `${SESSION_ID}-audit-results.md` (use an example name — the agent decides where to place it) (overwrite previous results).
+
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to decide whether errors remain before iterating. Pass the audit findings as state.
+
+```
+Question: "Does the implementation satisfy every goal with no errors?"
+Type: noul
+Criteria:
+  false = missing goals, spec violations, incomplete tasks, or quality issues
+  true  = all goals fulfilled, spec-compliant, tasks complete, no obvious issues
+Example answer: false
+```
+
+**Important:** The `noul` type returns a *single float in [0,1]*, not a label — it is the probability of `true`. Interpret it as: `≥ 0.6` → true (no errors, proceed), `≤ 0.4` → false (errors remain, iterate), between → unknown. Fall back to manual review if no decision tool is available.
 
 **If errors are found:**
 - Fix the code to address each finding

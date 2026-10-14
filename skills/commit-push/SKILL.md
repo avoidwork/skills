@@ -153,6 +153,24 @@ Craft the commit message based on the commit message format identified in Step 1
 - For new skills/features: `feat:`
 - For maintenance: `chore:`
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to pick the commit type instead of reasoning it out manually. Pass the staged changes as state.
+
+```
+Question: "What commit type best matches the bulk of these changes?"
+Type: choice
+Options: feat, fix, docs, chore, refactor, test
+Criteria:
+  feat     = new skills/features
+  fix      = bug fixes
+  docs     = documentation-only changes
+  chore    = maintenance
+  refactor = refactoring with no behavior change
+  test     = test-only changes
+Example answer: fix
+```
+
+Interpret the returned label directly. Fall back to the rules above if no decision tool is available.
+
 ### 5.2 Crafting the message
 
 Keep the subject line under 72 characters. Summarize the change in imperative mood.

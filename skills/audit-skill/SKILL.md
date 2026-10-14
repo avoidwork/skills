@@ -131,6 +131,19 @@ Check instruction specificity:
 
 Concrete example of vague instruction: "Make sure the code is good" → Should specify: "Follow AGENTS.md §3.3 error handling rules and §3.5 testing conventions."
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to judge whether an instruction is too vague to be actionable. Issue one `noul` question per instruction, passing the instruction as state.
+
+```
+Question: "Is this instruction too vague to be actionable?"
+Type: noul
+Criteria:
+  false = references a concrete file, rule, or pattern
+  true  = no specific action or rule referenced
+Example answer: true
+```
+
+**Important:** The `noul` type returns a *single float in [0,1]*, not a label — it is the probability of `true`. Interpret it as: `≥ 0.6` → true (vague), `≤ 0.4` → false (actionable), between → unknown. Fall back to the calibration criteria above if no decision tool is available.
+
 ### 9. Content Quality (WARN)
 
 Check for domain-specific expertise:

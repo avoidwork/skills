@@ -32,6 +32,20 @@ Analyze the user's description and determine whether this is a **fix** or a **fe
 
 **Default to `feat` (→ `feature` label) unless the description is clearly a bug.** If you are even slightly uncertain, it is a feature. There is no third option.
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to categorize instead of reasoning it out manually. Pass the user's description as state.
+
+```
+Question: "Is this a fix or a feat?"
+Type: choice
+Options: fix, feat
+Criteria:
+  fix  = bug, regression, unexpected behavior, crash, or something broken that needs repair
+  feat = new capability, enhancement, improvement, or something that doesn't exist yet
+Example answer: feat
+```
+
+Interpret the returned label directly. Fall back to the default-to-feat rule if no decision tool is available.
+
 **Capture the category and label as variables:**
 
 ```bash
@@ -50,6 +64,19 @@ LABEL="<bug|feature>"
 - **Multiple API integrations** — e.g., "add Google Docs, Sheets, Drive, Word, Excel, OneDrive" (6 separate APIs)
 - **Multiple capability areas in one tool** — e.g., "add copywriting, SEO, social media, translation, and text extraction" (5+ capability areas)
 - **Clear separation of concerns** — e.g., clipboard (simple, cross-platform) vs browser automation (heavy, platform-specific)
+
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to judge whether to split. Pass the description as state.
+
+```
+Question: "Does this issue bundle multiple independent capabilities that should be split?"
+Type: noul
+Criteria:
+  false = single narrow capability
+  true  = 2+ distinct tools/APIs/capability areas
+Example answer: true
+```
+
+**Important:** The `noul` type returns a *single float in [0,1]*, not a label — it is the probability of `true`. Interpret it as: `≥ 0.6` → true (split), `≤ 0.4` → false (don't split), between → unknown. Fall back to the judgment criteria above if no decision tool is available.
 
 **Action:**
 

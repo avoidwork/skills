@@ -137,6 +137,23 @@ Inspect the labels for a categorization tag. Priority order:
 
 If no categorization label is found, **default to `bug`**.
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to categorize instead of reasoning it out manually. Pass the issue details as state.
+
+```
+Question: "What category is this issue?"
+Type: choice
+Options: bug, feature, chore, docs, test
+Criteria:
+  bug     = defect or unexpected behavior
+  feature = new capability
+  chore   = maintenance, cleanup, refactoring
+  docs    = documentation changes
+  test    = test coverage improvements
+Example answer: bug
+```
+
+Interpret the returned label directly. Fall back to the priority order above if no decision tool is available.
+
 ### Step 6: Check for OpenSpec / Package Manager / Build Process
 
 Before invoking `create-feature`, verify whether the project has the infrastructure that `create-feature` depends on:

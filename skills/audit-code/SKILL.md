@@ -199,6 +199,22 @@ For each directory in the queue:
    - **Medium:** Performance degradation, missing error handling, code smell
    - **Low:** Minor optimization, style inconsistency, TODO items
 
+   **Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to classify each finding's severity. Issue one `choice` question per finding, passing the finding as state.
+
+   ```
+   Question: "Classify the severity of this finding: [finding description]"
+   Type: choice
+   Options: critical, high, medium, low
+   Criteria:
+     critical = data breach risk, production crash, data loss, authentication bypass
+     high     = functional bug affecting users, XSS, SQL injection, memory leak
+     medium   = performance degradation, missing error handling, code smell
+     low      = minor optimization, style inconsistency, TODO items
+   Example answer: high
+   ```
+
+   Interpret the returned label directly. Fall back to the criteria above if no decision tool is available.
+
 5. **Create Issue.** Invoke the `create-issue` skill with a synthesized description:
    ```
    create-issue Audit findings for $CURRENT_PHASE: Found N critical, N high, N medium, N low issues. See audit results below for details.

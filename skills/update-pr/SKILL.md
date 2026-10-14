@@ -122,6 +122,24 @@ Update an existing pull request's title and description following project conven
    5. `refactor:` — if only refactoring with no behavior change
    6. `chore:` — if only maintenance tasks
 
+   **Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to pick the type instead of reasoning it out manually. Feed the commit delta as state.
+
+   ```
+   Question: "Which conventional-commit type should the PR title use?"
+   Type: choice
+   Options: fix, feat, docs, test, refactor, chore
+   Criteria:
+     fix      = any commit fixes a bug
+     feat     = any commit adds a feature
+     docs     = only documentation/spec changes
+     test     = only test changes
+     refactor = only refactoring with no behavior change
+     chore    = only maintenance tasks
+   Example answer: feat
+   ```
+
+   Interpret the returned label directly. Fall back to the priority rule above if no decision tool is available.
+
    **Description selection:**
    - If all commits share a common theme, use that as the description.
    - If commits span multiple themes, use the **primary** theme (the one with the most commits or the most impactful change).
