@@ -345,6 +345,21 @@ After updating state, check if all phases are complete:
 | **Medium** | Naming inconsistencies, pattern misalignment, moderate nesting issues, duplicated utilities |
 | **Low** | Minor organizational tweaks, naming conventions, cosmetic restructuring |
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to classify each finding's impact. Issue one `choice` question per finding, passing the finding as state.
+
+```
+Question: "What is the impact of this restructuring opportunity?"
+Type: choice
+Options: high, medium, low
+Criteria:
+  high   = major cohesion/coupling issues, mixed concerns, structural anti-patterns
+  medium = naming inconsistencies, pattern misalignment, moderate nesting, duplicated utilities
+  low    = minor organizational tweaks, naming conventions, cosmetic restructuring
+Example answer: medium
+```
+
+Interpret the returned label directly. Fall back to the impact guidelines above if no decision tool is available.
+
 ## Output Format
 
 Each phase response must include:

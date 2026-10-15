@@ -213,6 +213,22 @@ else
   exit 1
 fi
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to pick the bump instead of reasoning it out manually. Feed the commit delta as state.
+
+```
+Question: "What semver bump should this release get?"
+Type: choice
+Options: major, minor, patch, none
+Criteria:
+  major = BREAKING CHANGE or `!` after type/scope
+  minor = net feat > 0 or perf commits
+  patch = net fix > 0 or no version-relevant commits
+  none  = no commits at all
+Example answer: minor
+```
+
+Interpret the returned label directly. Fall back to the counting rules above if no decision tool is available.
+
 # Compute new version using POSIX-compatible field splitting
 MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
 MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)

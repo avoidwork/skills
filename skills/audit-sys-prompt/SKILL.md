@@ -109,6 +109,22 @@ Rate each criterion on a strict 1–5 scale. Base scores on **explicit textual e
 
 ## Scoring & Weighting Rules
 
+**Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to rate each criterion. Issue one `score` question per criterion, passing the prompt text as state. Provide the rubric anchors as an **ordered array** (lowest to highest).
+
+```
+Question: "Rate role_clarity based on explicit textual evidence."
+Type: score
+Levels (ordered, lowest to highest):
+  0 = Vague, conflicting, or missing role/scope
+  1 = Somewhat clear but vague on scope or audience
+  2 = Clear but lacks audience definition or success metrics
+  3 = Clear role and audience, but missing one element
+  4 = Explicit role, target audience, core objective, and success definition with bounded scope
+Example answer: 3
+```
+
+**Important:** The `score` type returns a **probability-weighted average of the zero-based levels** — a continuous value on a `0..(N-1)` scale, not a discrete 1-N level. For a 5-level rubric, the returned score is on a 0–4 scale; **add 1 to map it to the 1–5 rubric**, then round to the nearest level. Do not trust the argmax index, which can disagree with the rounded weighted average. If no decision tool is available, rate manually using the anchors.
+
 1. **Calculate weighted score:** `Σ(criteria_score × weight)`
 2. **Round to 1 decimal place**
 3. **Pass threshold:** `≥ 4.2 overall AND no single criterion ≤ 3.0`
