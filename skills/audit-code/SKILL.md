@@ -58,11 +58,7 @@ STATE_FILE="${STATE_FILE_PATH:-audit-state-${SESSION_ID}.md}"
 3. **On resume** — Read the state file to determine where to pick up.
 4. **End of audit** — Delete the state file once all phases are complete.
 
-**Set up cleanup trap** at the start of Phase 0 so the state file is removed regardless of how the audit exits:
-
-```bash
-trap 'rm -f "$STATE_FILE"' EXIT
-```
+**Cleanup:** The state file should exist only while the audit is actively in progress. Delete it once all phases are complete. If the audit fails or is interrupted, delete the state file as part of cleanup. Do not rely on a shell `trap` — the agent must explicitly remove its work files when the task finishes or when cleaning up after a failure.
 
 ---
 

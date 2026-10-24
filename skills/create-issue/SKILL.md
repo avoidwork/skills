@@ -317,11 +317,8 @@ fi
 ```bash
 BODY_FILE=$(mktemp)
 
-# Set up guaranteed cleanup for BODY_FILE
-cleanup_body_file() {
-    rm -f "$BODY_FILE"
-}
-trap 'cleanup_body_file' EXIT
+# Cleanup: remove BODY_FILE once the issue is created, or when cleaning up after a failure.
+# Do not rely on a shell trap — delete the temp file explicitly when the task completes.
 
 cat > "$BODY_FILE" << BODYEOF
 $(echo "$FULL_TEMPLATE_BODY" | sed "s|<SYNTHESIZED_TITLE>|$SYNTHESIZED_TITLE|g")

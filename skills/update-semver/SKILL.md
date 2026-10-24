@@ -98,11 +98,7 @@ echo "WORKTREE_PATH=$WORKTREE_PATH"
 cd "$WORKTREE_PATH"
 ```
 
-**Set up guaranteed cleanup** — the trap removes the worktree on exit regardless of success or failure:
-
-```bash
-trap 'cd "$ORIGINAL_DIR" 2>/dev/null; git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true; rm -rf "$WORKTREE_PATH" 2>/dev/null' EXIT
-```
+**Cleanup:** When the task completes, or when cleaning up after a failure or interruption, the agent must remove the worktree. Do not rely on a shell `trap` — explicitly clean up work files at the end of the task or during failure cleanup. Remove the worktree with `git worktree remove "$WORKTREE_PATH" --force` (falling back to `rm -rf "$WORKTREE_PATH"` if needed) and return to `$ORIGINAL_DIR`.
 
 ## Step 1.5: Create a Release Branch
 
@@ -392,7 +388,7 @@ The world gets a new version.
 ## Gotchas
 
 - **Worktree isolation.** All release work happens in an isolated worktree created in Step 1. The worktree is a sibling of the repo root (e.g., `madz.worktrees/<SESSION_ID>/`), not nested inside it — this avoids the nested-repo footgun and keeps `main` pristine.
-- **Cleanup is automatic.** The trap registered in Step 1 removes the worktree on exit regardless of success or failure. No manual cleanup is needed.
+- **Cleanup is the agent's responsibility.** When the task completes, or when cleaning up after a failure or interruption, remove the worktree as described in Step 1. Do not rely on a shell `trap` — explicitly clean up work files at the end of the task or during failure cleanup.
 - **Session IDs prevent collisions.** When running multiple instances (e.g., subagents), always use a unique `SESSION_ID` to avoid worktree path collisions.
 - **`commit-push` is delegated, not inline.** Step 8 invokes `commit-push` as a chain instruction — do not perform git operations inline at that step.
 - **Never commit directly to `main`.** The release branch is created inside the worktree in Step 1.5; `main` is never modified directly.

@@ -197,11 +197,8 @@ Once the issue is created, replace the dummy body with the full restructuring an
 ```bash
 BODY_FILE=$(mktemp)
 
-# Set up guaranteed cleanup for BODY_FILE
-cleanup_restructure_body() {
-    rm -f "$BODY_FILE"
-}
-trap 'cleanup_restructure_body' EXIT
+# Cleanup: remove BODY_FILE once the issue is created, or when cleaning up after a failure.
+# Do not rely on a shell trap — delete the temp file explicitly when the task completes.
 
 # Build the full analysis body — use heredoc to preserve formatting
 cat > "$BODY_FILE" << BODYEOF
