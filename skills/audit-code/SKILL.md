@@ -273,8 +273,9 @@ For each directory in the queue:
 
 ## Execution Rules
 
-1. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
-2. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed.
+1. **STATE PERSISTENCE.** Always save state after processing each directory. Always read state before starting a new directory.
+2. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
+3. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed.
 
 ## Error Handling
 
