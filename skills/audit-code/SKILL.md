@@ -13,7 +13,7 @@ metadata:
 
 > **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
 
-Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Directories are independent — each gets its own issue, so they can be scanned in parallel.
+Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Directories are independent — each gets its own issue.
 
 ## State Management
 
@@ -116,7 +116,7 @@ STATE_FILE="${STATE_FILE_PATH:-audit-state-${SESSION_ID}.md}"
 
 ### Directory Processing
 
-Process directories concurrently. Each directory is independent and gets its own issue, so there is no ordering dependency.
+Each directory is independent and gets its own issue, so there is no ordering dependency.
 
 #### Directory Scan Execution
 
@@ -273,9 +273,8 @@ For each directory in the queue:
 
 ## Execution Rules
 
-1. **PARALLEL PROCESSING.** Scan directories concurrently. Directories are independent — each gets its own issue, so there is no ordering dependency.
-2. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
-3. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed.
+1. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
+2. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed.
 
 ## Error Handling
 
