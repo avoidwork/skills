@@ -1,11 +1,10 @@
 ---
 name: audit-code
-description: Audits each directory in ./src for bugs, security vulnerabilities, and performance issues sequentially. Generates one consolidated issue per directory via /create-issue.
+description: Audits each directory in ./src for bugs, security vulnerabilities, and performance issues. Generates one consolidated issue per directory via /create-issue.
 license: BSD 3-Clause
 compatibility: Node.js project with ./src directory structure
 metadata:
-  version: 2.2.0
-  phase-mode: sequential
+  version: 2.3.0
   target: ./src
   agent: code-review
 ---
@@ -14,7 +13,7 @@ metadata:
 
 > **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
 
-Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Execute **sequentially** — process one directory at a time, saving state between steps.
+Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Directories are independent — each gets its own issue.
 
 ## State Management
 
@@ -113,11 +112,11 @@ STATE_FILE="${STATE_FILE_PATH:-audit-state-${SESSION_ID}.md}"
    echo "" >> "$STATE_FILE"
    echo "## Findings" >> "$STATE_FILE"
    ```
-6. **Proceed** to sequential processing immediately.
+6. **Proceed** to directory processing immediately.
 
-### Sequential Directory Processing
+### Directory Processing
 
-Process directories one at a time in alphabetical order.
+Each directory is independent and gets its own issue, so there is no ordering dependency.
 
 #### Directory Scan Execution
 
@@ -274,11 +273,9 @@ For each directory in the queue:
 
 ## Execution Rules
 
-1. **SEQUENTIAL PROCESSING.** Process directories one at a time in alphabetical order.
-2. **NO PARALLELISM.** Do not spawn subagents or process multiple directories concurrently.
-3. **STATE PERSISTENCE.** Always save state after processing each directory. Always read state before starting a new directory.
-4. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
-5. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed.
+1. **STATE PERSISTENCE.** Always save state after processing each directory. Always read state before starting a new directory.
+2. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
+3. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed.
 
 ## Error Handling
 
