@@ -1,11 +1,11 @@
 ---
 name: audit-code
-description: Audits each directory in ./src for bugs, security vulnerabilities, and performance issues sequentially. Generates one consolidated issue per directory via /create-issue.
+description: Audits each directory in ./src for bugs, security vulnerabilities, and performance issues. Generates one consolidated issue per directory via /create-issue. Supports parallel scanning of independent directories.
 license: BSD 3-Clause
 compatibility: Node.js project with ./src directory structure
 metadata:
-  version: 2.2.0
-  phase-mode: sequential
+  version: 2.3.0
+  phase-mode: parallel
   target: ./src
   agent: code-review
 ---
@@ -14,7 +14,7 @@ metadata:
 
 > **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
 
-Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Execute **sequentially** — process one directory at a time, saving state between steps.
+Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Directories are **independent** — each gets its own issue, so they can be scanned in parallel. Fan out one subagent per directory, collect findings, then create issues in a single pass. This is the default and preferred mode.
 
 ## State Management
 
@@ -113,172 +113,112 @@ STATE_FILE="${STATE_FILE_PATH:-audit-state-${SESSION_ID}.md}"
    echo "" >> "$STATE_FILE"
    echo "## Findings" >> "$STATE_FILE"
    ```
-6. **Proceed** to sequential processing immediately.
+6. **Proceed** to parallel processing immediately.
 
-### Sequential Directory Processing
+### Parallel Directory Processing
 
-Process directories one at a time in alphabetical order.
+Process directories concurrently. Each directory is independent and gets its own issue, so there is no ordering dependency.
 
-#### Directory Scan Execution
+#### Phase A: Fan out scans
 
-For each directory in the queue:
+For each directory in the queue, dispatch a subagent to scan it. The subagent reads the files and returns a structured findings list. Use the `task` tool with `subagent_type: "code-review"` (or `general-purpose` if code-review is unavailable). Batch the dispatches with `Promise.all`, bounded to a reasonable concurrency (e.g. 10 at a time).
 
-1. **Read state.** Read the state file to get the current phase:
-   ```bash
-   CURRENT_PHASE=$(grep -A1 "^## Current Phase" "$STATE_FILE" | tail -1 | tr -d ' \n')
-   echo "Processing: $CURRENT_PHASE"
-   ```
+Each subagent prompt must include:
+- The directory path to audit (absolute or relative to the project root).
+- The concrete pattern checks (silent catch, unhandled promises, console.log, eval, SQL injection, sync I/O, wildcard exports, while-true, unbounded Sets/Maps, module-level cwd capture, duplicated logic).
+- The severity criteria (critical/high/medium/low).
+- The instruction to return findings as a structured list of `{ file, type, severity, summary }`.
+- The instruction to NEVER include raw secret values in the report.
 
-2. **Enumerate files.** List all files in the target directory:
-   ```bash
-   # Recurse into subdirectories, excluding common patterns
-   find "$CURRENT_PHASE" -type f \
-     ! -path '*/node_modules/*' \
-     ! -path '*/.git/*' \
-     ! -path '*/__tests__/*' \
-     ! -path '*/.next/*' \
-     ! -path '*/dist/*' \
-     ! -path '*/build/*' \
-     ! -name '*.test.*' \
-     ! -name '*.spec.*' \
-     ! -name '*.d.ts' \
-     ! -name '*.js.map' \
-     \( -name '*.js' -o -name '*.ts' -o -name '*.jsx' -o -name '*.tsx' \)
-   ```
+Example dispatch:
+```javascript
+const dirs = ["src/agent", "src/config", "src/tools", /* ... */];
+const results = await Promise.all(dirs.map((dir) =>
+  task({
+    description: `Audit ${dir} for bugs, security, and performance issues. ` +
+      `Read the files, apply the pattern checks, and return findings as a list of ` +
+      `{ file, type, severity, summary }. Never include raw secret values.`,
+    subagentType: "code-review",
+    responseSchema: {
+      type: "object",
+      properties: {
+        findings: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              file: { type: "string" },
+              type: { type: "string" },
+              severity: { type: "string" },
+              summary: { type: "string" },
+            },
+            required: ["file", "type", "severity", "summary"],
+          },
+        },
+      },
+      required: ["findings"],
+    },
+  }).then((r) => ({ dir, findings: r.findings }))
+));
+```
 
-3. **Audit each file.** For each file, check for issues using concrete patterns:
+#### Phase B: Create one issue per directory
 
-   **Bugs** — grep for common anti-patterns:
-   ```bash
-   # Silent catch blocks
-   grep -rn 'catch\s*(' "$file" | grep -v 'err' | grep -v 'error'
-   # Unhandled promises (no .catch())
-   grep -rn '\.then(' "$file" | grep -v '\.catch('
-   # console.log in production code
-   grep -rn 'console\.log' "$file"
-   ```
+After all scans return, create one issue per directory that has findings. For each directory:
 
-    **Security** — grep for OWASP Top 10 violations (per AGENTS.md §1.2):
-    ```bash
-    # Hardcoded secrets — capture count only, NEVER print values to issue body
-    SECRET_COUNT=$(grep -rnc 'password\s*=\s*["\x27]' "$file" 2>/dev/null | awk -F: '{s+=$NF}END{print s}')
-    SECRET_COUNT=${SECRET_COUNT:-0}
-    # eval() usage (forbidden per AGENTS.md §1.1)
-    grep -rn 'eval(' "$file"
-    # SQL injection vectors (string concatenation in queries)
-    grep -rn "query\s*.*\+\s*req" "$file"
-    # Missing auth middleware on routes
-    # (check route definitions for missing auth guards)
-    ```
-
-    **CRITICAL:** When writing security findings to the issue body or state file, NEVER include the matched line content. Only report the pattern type and count:
-
-    ```
-    | [file] | security | critical | Potential hardcoded secret: password/api_key pattern detected (N occurrences) |
-    ```
-
-    The actual secret value must never appear in any output — it will be written to a GitHub issue via `gh issue edit`, exposed to anyone with repo access.
-
-   **Performance** — grep for common issues:
-   ```bash
-   # Synchronous file I/O in async functions
-   grep -rn 'readFileSync\|writeFileSync' "$file"
-   # Unbounded loops
-   grep -rn 'while\s*(true)' "$file"
-   # Large bundle imports
-   grep -rn 'import.*\*' "$file"
-   ```
-
-4. **Classify severity.** Use these concrete criteria:
+1. **Classify severity.** Use these concrete criteria:
    - **Critical:** Data breach risk, production crash, data loss, authentication bypass
    - **High:** Functional bug affecting users, XSS, SQL injection, memory leak
    - **Medium:** Performance degradation, missing error handling, code smell
    - **Low:** Minor optimization, style inconsistency, TODO items
 
-   **Structured decision:** If the harness provides a structured-decision tool (e.g., `decision`), use it to classify each finding's severity. Issue one `choice` question per finding, passing the finding as state.
-
+2. **Create Issue.** Invoke the `create-issue` skill with a synthesized description:
    ```
-   Question: "Classify the severity of this finding: [finding description]"
-   Type: choice
-   Options: critical, high, medium, low
-   Criteria:
-     critical = data breach risk, production crash, data loss, authentication bypass
-     high     = functional bug affecting users, XSS, SQL injection, memory leak
-     medium   = performance degradation, missing error handling, code smell
-     low      = minor optimization, style inconsistency, TODO items
-   Example answer: high
+   create-issue Audit findings for $DIR: Found N critical, N high, N medium, N low issues. See audit results below for details.
    ```
 
-   Interpret the returned label directly. Fall back to the criteria above if no decision tool is available.
+   **IMPORTANT — category:** Audit findings are **fixes** (defects to repair), not features. Pass `fix` as the category so the issue is labeled `bug`, not `feature`. Do not rely on create-issue's default-to-feat rule.
 
-5. **Create Issue.** Invoke the `create-issue` skill with a synthesized description:
-   ```
-   create-issue Audit findings for $CURRENT_PHASE: Found N critical, N high, N medium, N low issues. See audit results below for details.
-   ```
+   **Capture `ISSUE_NUMBER` from the create-issue output** (the chained skill prints `ISSUE_NUMBER=<number>`).
 
-   **Capture `ISSUE_NUMBER` from the create-issue output** (the chained skill prints `ISSUE_NUMBER=<number>`):
+3. **Update Issue Body.** Append a structured audit table to the issue. **Read the current body first, then append — do NOT overwrite.** The synthesized description must be preserved:
 
    ```bash
-   # Capture ISSUE_NUMBER from the conversation history (last occurrence wins)
-   ISSUE_NUMBER=$(echo "$CONVERSATION_HISTORY" | grep -oE '^ISSUE_NUMBER=[0-9]+' | tail -1 | cut -d= -f2)
-   if [ -z "$ISSUE_NUMBER" ]; then
-     echo "ERROR: Could not capture ISSUE_NUMBER from create-issue output. Conversation history:"
-     echo "$CONVERSATION_HISTORY" | tail -20
-     exit 1
-   fi
-   echo "ISSUE_NUMBER=$ISSUE_NUMBER"
-   ```
-
-   **After creating the issue (or failing to), continue to Step 6.** Do not stop or wait for further input — the pipeline proceeds automatically.
-
-6. **Update Issue Body.** Append a structured audit table to the issue. Collect findings into a temp file, then write them to the issue:
-
-   ```bash
+   CURRENT_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' --repo "$REPO")
    AUDIT_FILE=$(mktemp)
-
-   # Write the audit table header
-   printf "| File | Type | Severity | Summary |\n|------|------|----------|---------|\n" > "$AUDIT_FILE"
-
-   # Append each finding as a table row (populated from the audit results collected above)
-   # Example: printf "| src/foo.js | bug | high | Unhandled promise rejection |\n" >> "$AUDIT_FILE"
-
+   printf '%s\n' "$CURRENT_BODY" > "$AUDIT_FILE"
+   printf '\n## Audit Findings\n\n| File | Type | Severity | Summary |\n|------|------|----------|---------|\n' >> "$AUDIT_FILE"
+   # Append each finding as a table row
+   printf '| %s | %s | %s | %s |\n' "$file" "$type" "$severity" "$summary" >> "$AUDIT_FILE"
    gh issue edit "$ISSUE_NUMBER" --body-file "$AUDIT_FILE" --repo "$REPO"
-
-   # Verify the body was updated successfully
-   VERIFY_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' --repo "$REPO" 2>/dev/null || true)
-   if ! echo "$VERIFY_BODY" | grep -q "File.*Type.*Severity.*Summary"; then
-     echo "WARNING: Failed to verify audit table was written to issue #$ISSUE_NUMBER."
-   else
-     echo "Audit table verified on issue #$ISSUE_NUMBER."
-   fi
-
    rm -f "$AUDIT_FILE"
    ```
 
-7. **Update State.** Mark the directory as completed in the state file:
-    ```bash
-    # Use | as sed delimiter to safely handle directory paths containing /
-    ESCAPED_PHASE=$(echo "$CURRENT_PHASE" | sed 's/[|&]/\\&/g')
-    sed -i "s|- \[ \] $ESCAPED_PHASE|- [x] $ESCAPED_PHASE|" "$STATE_FILE"
-    # Append findings
-    echo "" >> "$STATE_FILE"
-    echo "## Findings: $CURRENT_PHASE" >> "$STATE_FILE"
-    echo "[Findings stored here]" >> "$STATE_FILE"
-    ```
+   **Verify** the body contains both the description and the audit table:
+   ```bash
+   VERIFY_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' --repo "$REPO" 2>/dev/null || true)
+   if echo "$VERIFY_BODY" | grep -q "File.*Type.*Severity.*Summary"; then
+     echo "Audit table verified on issue #$ISSUE_NUMBER."
+   else
+     echo "WARNING: Audit table not found on issue #$ISSUE_NUMBER."
+   fi
+   ```
 
-8. **Report Output.** Use the standard Output Format below.
+4. **Report Output.** Use the standard Output Format below.
 
-9. **Advance.** Move to the next directory in the queue. If none remain, delete the state file (`rm -f "$STATE_FILE"`) and report completion.
+#### Phase C: Cleanup
+
+Delete the state file (`rm -f "$STATE_FILE"`) and report completion.
 
 ---
 
 ## Execution Rules
 
-1. **SEQUENTIAL PROCESSING.** Process directories one at a time in alphabetical order.
-2. **NO PARALLELISM.** Do not spawn subagents or process multiple directories concurrently.
-3. **STATE PERSISTENCE.** Always save state after processing each directory. Always read state before starting a new directory.
-4. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
-5. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed.
+1. **PARALLEL PROCESSING.** Scan directories concurrently via subagents. Directories are independent — each gets its own issue, so there is no ordering dependency.
+2. **ONE ISSUE PER DIRECTORY.** Do not combine multiple directories into a single issue.
+3. **FIX CATEGORY.** Audit findings are fixes, not features. Create each issue with the `fix` category so it is labeled `bug`, never `feature`.
+4. **PRESERVE ISSUE BODY.** When appending the audit table, read the current body first and append — never overwrite the synthesized description.
+5. **STOP CONDITION.** Terminate when all directories in the phase queue have been processed and their issues created.
 
 ## Error Handling
 
@@ -295,6 +235,8 @@ For each directory in the queue:
 - **Security findings must never include raw secret values.** The audit table only reports pattern type and count — never the matched line content. Writing secrets to a GitHub issue exposes them to anyone with repo access.
 - **State file cleanup is critical.** Always delete the state file at the start of a new audit and at the end when complete. Stale state files cause incorrect resume behavior.
 - **`gh` CLI must be authenticated before starting.** The audit will fail silently at Step 6 if `gh` is not logged in. Run `gh auth login` first.
+- **Never overwrite the issue body.** `gh issue edit --body-file` replaces the entire body. When appending the audit table, read the current body first and append — otherwise you clobber the synthesized description. This is a real, observed failure mode.
+- **Audit findings are fixes, not features.** Defaulting to `feat`/`feature` mislabels every defect as an enhancement. Pass `fix`/`bug` explicitly when chaining to create-issue.
 
 ## Output Format
 
