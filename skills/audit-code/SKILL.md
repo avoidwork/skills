@@ -14,7 +14,7 @@ metadata:
 
 > **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
 
-Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Directories are **independent** — each gets its own issue, so they can be scanned in parallel. Fan out one subagent per directory, collect findings, then create issues in a single pass. This is the default and preferred mode.
+Audit the `./src` directory tree for bugs, security vulnerabilities, and performance issues. Directories are **independent** — each gets its own issue, so they can be scanned in parallel. Fan out one subagent per directory, collect the findings, then create the issues in a single pass. This is the default and preferred mode.
 
 ## State Management
 
@@ -121,7 +121,7 @@ Process directories concurrently. Each directory is independent and gets its own
 
 #### Phase A: Fan out scans
 
-For each directory in the queue, dispatch a subagent to scan it. The subagent reads the files and returns a structured findings list. Use the `task` tool with `subagent_type: "code-review"` (or `general-purpose` if code-review is unavailable). Batch the dispatches with `Promise.all`, bounded to a reasonable concurrency (e.g. 10 at a time).
+For each directory in the queue, dispatch a subagent to scan it. The subagent reads the files and returns a structured findings list. Use the `task` tool with the `code-review` subagent type (or `general-purpose` if `code-review` is unavailable). Batch the dispatches with `Promise.all`, bounded to a reasonable concurrency (for example, ten at a time).
 
 Each subagent prompt must include:
 - The directory path to audit (absolute or relative to the project root).
@@ -129,38 +129,6 @@ Each subagent prompt must include:
 - The severity criteria (critical/high/medium/low).
 - The instruction to return findings as a structured list of `{ file, type, severity, summary }`.
 - The instruction to NEVER include raw secret values in the report.
-
-Example dispatch:
-```javascript
-const dirs = ["src/agent", "src/config", "src/tools", /* ... */];
-const results = await Promise.all(dirs.map((dir) =>
-  task({
-    description: `Audit ${dir} for bugs, security, and performance issues. ` +
-      `Read the files, apply the pattern checks, and return findings as a list of ` +
-      `{ file, type, severity, summary }. Never include raw secret values.`,
-    subagentType: "code-review",
-    responseSchema: {
-      type: "object",
-      properties: {
-        findings: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              file: { type: "string" },
-              type: { type: "string" },
-              severity: { type: "string" },
-              summary: { type: "string" },
-            },
-            required: ["file", "type", "severity", "summary"],
-          },
-        },
-      },
-      required: ["findings"],
-    },
-  }).then((r) => ({ dir, findings: r.findings }))
-));
-```
 
 #### Phase B: Create one issue per directory
 
