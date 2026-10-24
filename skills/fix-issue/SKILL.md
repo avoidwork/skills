@@ -115,7 +115,7 @@ Before any work begins, mark the issue as being worked on:
 gh issue edit "$ISSUE_NUM" --add-label "in progress" --repo "$REPO"
 
 # Verify the label was added successfully
-LABEL_CHECK=$(gh issue view "$ISSUE_NUM" --json labels --jq '.[].name' --repo "$REPO" 2>/dev/null || true)
+LABEL_CHECK=$(gh issue view "$ISSUE_NUM" --json labels --jq '.labels[].name' --repo "$REPO" 2>/dev/null || true)
 if ! echo "$LABEL_CHECK" | grep -q 'in progress'; then
   echo "ERROR: Failed to add 'in progress' label to issue #$ISSUE_NUM."
   exit 1
