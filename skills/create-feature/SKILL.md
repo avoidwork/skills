@@ -104,7 +104,7 @@ echo "SESSION_ID=$SESSION_ID"
 
 **Where to store temp files:** The agent running this skill decides where to place temp files. Use example names like `${SESSION_ID}-feature-goals.md`, `${SESSION_ID}-feature-prompt.md`, `${SESSION_ID}-audit-results.md`, and `${SESSION_ID}-pr-number.txt`. The agent may place them in `tmp/`, `state/`, or any other directory that fits the project's conventions.
 
-**Set up guaranteed cleanup:** Register a single trap so all temp files and the worktree are removed regardless of how the skill exits (success, failure, interruption). The cleanup function is defined later in Step 0.75 after the worktree path is known — the trap at Step 0.5 is a placeholder that gets overwritten.
+**Cleanup:** The agent must remove all temp files and the worktree when the task completes, and also when cleaning up after a failure or interruption. Do not rely on a shell `trap` — explicitly clean up work files at the end of the task or during failure cleanup. The worktree path is defined in Step 0.75; the agent should track it and remove it as part of cleanup.
 
 ---
 
@@ -135,11 +135,7 @@ echo "WORKTREE_PATH=$WORKTREE_PATH"
 cd "$WORKTREE_PATH"
 ```
 
-**Set up combined cleanup trap** — runs on exit regardless of success or failure. This single trap replaces any earlier placeholder traps:
-
-```bash
-trap 'cd "$ORIGINAL_DIR" 2>/dev/null; git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true; rm -rf "$WORKTREE_PATH" 2>/dev/null; rm -f "${SESSION_ID}-feature-goals.md" "${SESSION_ID}-feature-prompt.md" "${SESSION_ID}-audit-results.md" "${SESSION_ID}-pr-number.txt" "${SESSION_ID}-test-patterns.md"' EXIT
-```
+**Cleanup:** When the task completes, or when cleaning up after a failure or interruption, the agent must remove the worktree and all temp files. Do not rely on a shell `trap` — explicitly clean up work files at the end of the task or during failure cleanup. Remove the worktree with `git worktree remove "$WORKTREE_PATH" --force` (falling back to `rm -rf "$WORKTREE_PATH"` if needed), return to `$ORIGINAL_DIR`, and delete the temp files (`${SESSION_ID}-feature-goals.md`, `${SESSION_ID}-feature-prompt.md`, `${SESSION_ID}-audit-results.md`, `${SESSION_ID}-pr-number.txt`, `${SESSION_ID}-test-patterns.md`).
 
 ---
 
@@ -651,7 +647,7 @@ Coverage: maintained
 
 ## Step 14: Cleanup
 
-Cleanup is handled automatically by the trap registered in Step 0.75. The trap removes the worktree and all temp files on exit regardless of success or failure. No manual cleanup is needed.
+Cleanup is the agent's responsibility. When the task completes, or when cleaning up after a failure or interruption, remove the worktree and all temp files as described in Step 0.75. Do not rely on a shell `trap` — explicitly clean up work files at the end of the task or during failure cleanup.
 
 Verify the worktree was removed:
 ```bash

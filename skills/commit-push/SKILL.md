@@ -270,12 +270,10 @@ done
 
 **Write the filled-in body to a temp file** — do NOT pass the template file path as the body:
 
+**Cleanup:** Remove `BODY_FILE` once the PR is created, or when cleaning up after a failure. Do not rely on a shell `trap` — delete the temp file explicitly when the task completes.
+
 ```bash
 BODY_FILE=$(mktemp)
-
-# Set up guaranteed cleanup for BODY_FILE
-BODY_FILE_CLEANUP="rm -f \"$BODY_FILE\""
-trap "$BODY_FILE_CLEANUP" EXIT
 
 # Capture the commit subject and changed files for substitution
 COMMIT_SUBJECT=$(git log -1 --oneline | sed 's/^[a-f0-9]* //')
