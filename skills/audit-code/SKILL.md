@@ -5,7 +5,6 @@ license: BSD 3-Clause
 compatibility: Node.js project with ./src directory structure
 metadata:
   version: 2.3.0
-  phase-mode: parallel
   target: ./src
   agent: code-review
 ---
