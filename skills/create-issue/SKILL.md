@@ -314,11 +314,10 @@ fi
 3. **Create the issue on GitHub** (this step)
 4. *Then and only then* proceed to the audit (step 6)
 
+**Cleanup:** Remove `BODY_FILE` once the issue is created, or when cleaning up after a failure. Do not rely on a shell `trap` — delete the temp file explicitly when the task completes.
+
 ```bash
 BODY_FILE=$(mktemp)
-
-# Cleanup: remove BODY_FILE once the issue is created, or when cleaning up after a failure.
-# Do not rely on a shell trap — delete the temp file explicitly when the task completes.
 
 cat > "$BODY_FILE" << BODYEOF
 $(echo "$FULL_TEMPLATE_BODY" | sed "s|<SYNTHESIZED_TITLE>|$SYNTHESIZED_TITLE|g")

@@ -194,11 +194,10 @@ Once the issue is created, replace the dummy body with the full restructuring an
 
 **Write the analysis to a temp file** to avoid echo escaping issues with multi-line content and backticks:
 
+**Cleanup:** Remove `BODY_FILE` once the issue is created, or when cleaning up after a failure. Do not rely on a shell `trap` — delete the temp file explicitly when the task completes.
+
 ```bash
 BODY_FILE=$(mktemp)
-
-# Cleanup: remove BODY_FILE once the issue is created, or when cleaning up after a failure.
-# Do not rely on a shell trap — delete the temp file explicitly when the task completes.
 
 # Build the full analysis body — use heredoc to preserve formatting
 cat > "$BODY_FILE" << BODYEOF
