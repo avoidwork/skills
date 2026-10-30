@@ -1,6 +1,6 @@
 ---
 name: scan-issues
-description: Scans GitHub for open issues labeled 'approved' (excluding those also labeled 'in progress'), processes them sequentially via fix-issue, and opens one PR at a time with auto-merge. Runs hourly.
+description: Scans GitHub for open issues labeled 'approved' (excluding those also labeled 'in progress'), processes them via fix-issue, opens PRs with auto-merge, and resolves merge conflicts. Runs hourly.
 license: BSD 3-Clause
 compatibility: Requires gh CLI authenticated with a GitHub repo. Must be run from a git project root.
 metadata:
@@ -11,7 +11,7 @@ metadata:
 
 > **⚠️ EXECUTION RULE:** Every code block in this skill is a shell command to **execute**. Do not print them as text, explain them, or treat them as examples — run them directly.
 
-An autonomous issue scanner and fixer. Finds approved, unassigned issues and processes them **one at a time** through the `fix-issue` pipeline. Worktree isolation is handled internally by `create-feature`.
+An autonomous issue scanner and fixer. Finds approved, unassigned issues and processes them through the `fix-issue` pipeline. Worktree isolation is handled internally by `create-feature`.
 
 ## Workflow
 
@@ -61,18 +61,18 @@ If no issues match, report `No approved, unassigned issues found.` and exit clea
 
 ### 3. Parse Results
 
-Extract each issue's `number`, `title`, `url`, and `labels` from the JSON array. Sort the remaining issues by `number` ascending (oldest first) to ensure sequential processing.
+Extract each issue's `number`, `title`, `url`, and `labels` from the JSON array.
 
-### 4. Process Issues Sequentially
+### 4. Process Issues
 
-**Process one issue at a time.** Do NOT spawn subagents or parallelize — each issue must be processed sequentially to avoid label conflicts and race conditions:
+**Process each issue independently.** Issues can be processed in parallel — spawn subagents or dispatch concurrent `fix-issue` runs. Worktree isolation is handled internally by `create-feature`, so parallel runs do not conflict:
 
-For each issue in the sorted list:
+For each issue:
 
 1. **Invoke fix-issue** as a chain instruction.
    This chains through the full `fix-issue` → `create-feature` pipeline. The `create-feature` skill handles worktree creation and cleanup internally.
 
-2. **Wait for completion.** Do not proceed to the next issue until the current one is done.
+2. **Wait for completion.** Each `fix-issue` run completes on its own; parallel runs proceed independently.
 
 3. **Extract PR_NUMBER from fix-issue output.** The `fix-issue` chain prints `PR_NUMBER=<number>` as structured output in the conversation history. Read it from there — do not attempt to grep a shell variable.
 
@@ -94,15 +94,13 @@ For each issue in the sorted list:
 
 5. **If fix-issue fails:** Log the error, skip the issue, and continue with the next. Never abort the queue over a single failure.
 
-**After processing the issue, continue to the next issue in the queue.** Do not stop or wait for further input — the pipeline proceeds automatically.
-
 **Rate limiting:** If GitHub API returns 403 rate limit, wait 60 seconds and retry the current issue once.
 
 **Timeout handling:** Each fix-issue run can take 30-60 minutes (via create-feature). If a run exceeds 60 minutes, report a timeout warning but do not abort — the issue may still be processing.
 
 ### 6. PR Auto-Merge
 
-Only **one PR can be open at a time**. The `create-feature` → `commit-push` pipeline within `fix-issue` handles PR creation. After extracting `PR_NUMBER` from the fix-issue output:
+The `create-feature` → `commit-push` pipeline within `fix-issue` handles PR creation. After extracting `PR_NUMBER` from the fix-issue output:
 
 - Set it to auto-merge if the repo supports it:
   ```bash
@@ -118,7 +116,64 @@ Only **one PR can be open at a time**. The `create-feature` → `commit-push` pi
   ```
 - If auto-merge is not available or fails, note it in the report but do not block on it.
 
-### 7. Report
+### 7. Resolve Merge Conflicts
+
+If a PR cannot merge because it conflicts with the default branch, resolve the conflict in an **isolated worktree** so parallel runs do not collide on the shared checkout. Each conflict resolution uses its own session ID and worktree path (same pattern as `create-feature`).
+
+1. **Detect the conflict.** Check the PR's mergeable state:
+   ```bash
+   MERGEABLE=$(gh pr view "$PR_NUMBER" --json mergeable --jq '.mergeable' --repo "$REPO")
+   if [ "$MERGEABLE" = "CONFLICTING" ]; then
+     echo "PR #$PR_NUMBER has merge conflicts. Resolving..."
+   fi
+   ```
+
+2. **Create an isolated worktree for the PR branch.** Use a unique session ID and a sibling directory so parallel runs never share a checkout:
+   ```bash
+   PROJECT_ROOT=$(git rev-parse --show-toplevel)
+   WORKTREES_DIR="$(dirname "$PROJECT_ROOT")/$(basename "$PROJECT_ROOT").worktrees"
+   mkdir -p "$WORKTREES_DIR"
+   SESSION_ID=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' || echo $RANDOM$RANDOM$RANDOM)
+   WORKTREE_PATH="${WORKTREES_DIR}/conflict-${SESSION_ID}"
+   DEFAULT_BRANCH=$(git remote show origin | sed -n 's/.*HEAD branch: //p')
+   PR_BRANCH=$(gh pr view "$PR_NUMBER" --json headRefName --jq '.headRefName' --repo "$REPO")
+
+   git fetch origin "$PR_BRANCH" "$DEFAULT_BRANCH"
+   git worktree add "$WORKTREE_PATH" "origin/$PR_BRANCH"
+   cd "$WORKTREE_PATH"
+   ```
+
+3. **Merge the default branch into the PR branch.** Use `--no-commit` so the merge is staged but not committed, letting the same commit step handle both the clean and conflicted cases:
+   ```bash
+   git merge --no-commit "origin/$DEFAULT_BRANCH"
+   ```
+
+4. **Resolve conflicts.** If the merge reports conflicts, resolve them manually:
+   - Inspect each conflicted file: `git status` lists them.
+   - Edit each file to keep the correct changes, removing conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+   - Stage the resolved files: `git add <file>`.
+
+5. **Commit and push.** Once the merge is complete (clean or resolved) and staged:
+   ```bash
+   git commit --no-edit
+   git push origin "HEAD:refs/heads/$PR_BRANCH"
+   ```
+
+6. **Verify.** Confirm the PR is now mergeable:
+   ```bash
+   gh pr view "$PR_NUMBER" --json mergeable --jq '.mergeable' --repo "$REPO"
+   ```
+   If it reports `MERGEABLE`, the PR can merge. If it still reports `CONFLICTING`, repeat the resolution steps or report the unresolved conflict.
+
+7. **Clean up the worktree.** Return to the original directory and remove the worktree:
+   ```bash
+   cd "$PROJECT_ROOT"
+   git worktree remove "$WORKTREE_PATH" --force
+   ```
+
+**Note:** Each conflict resolution runs in its own worktree with its own session ID, so parallel runs never share a checkout and never collide on the same branch. If the PR branch is already up to date with the default branch (no merge needed), `git merge --no-commit` reports "Already up to date" — skip the commit and push, then clean up.
+
+### 8. Report
 
 After all issues are processed, produce a structured summary:
 
